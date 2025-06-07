@@ -102,12 +102,11 @@ import { onMounted, onUnmounted, ref } from "vue"
 import { Cpu, Menu as IconMenu, Message, Setting } from "@element-plus/icons-vue"
 import { RouterView, useRoute } from "vue-router"
 import router from "@/router"
-import { createWebSocketClient, OnlineState, subscriptionDeviceOnlineStateSwitchEvent, unsubscribe } from "@/util/api"
+import { createDefWebSocketClient, getDefWebSocketClient, getToken, OnlineState, subscriptionDeviceOnlineStateSwitchEvent, unsubscribe } from "@/util/api"
 import type { DeviceOnlineStateSwitchEvent } from "@/util/api"
 import { ElNotification } from "element-plus"
 import { createClient } from "graphql-ws"
 import type { Client } from "graphql-ws"
-import { useGraphqlStore } from "@/util/store"
 
 const route = useRoute()
 const activeMenu = ref("1-1")
@@ -126,13 +125,11 @@ function displayAllCar() {
   })
 }
 
-const graphqlStore = useGraphqlStore()
-
 let unsubscribeDeviceOnlineStateSwitchEvent: unsubscribe | null = null
 
 onMounted(() => {
 
-  if (graphqlStore.getToken() === "") {
+  if (getToken() === "") {
     console.log("the token is null, to login")
     router.push({
       path: "/"
@@ -140,12 +137,13 @@ onMounted(() => {
     return
   }
 
-  if (!graphqlStore.client) {
-    graphqlStore.initializeClient()
+  if (!getDefWebSocketClient()) {
+    createDefWebSocketClient()
   }
+  
 
   unsubscribeDeviceOnlineStateSwitchEvent = subscriptionDeviceOnlineStateSwitchEvent(
-    graphqlStore.client,
+    getDefWebSocketClient(),
     {
       next(value: DeviceOnlineStateSwitchEvent) {
         ElNotification(

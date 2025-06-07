@@ -3,8 +3,7 @@ import { ref, onMounted } from 'vue'
 import RetrievePassword from '../components/RetrievePassword.vue'
 import Registered from '../components/Registered.vue'
 import { useRouter } from 'vue-router'
-import { login } from '@/util/api.ts'
-import { useGraphqlStore } from '@/util/store.js'
+import { login, setToken } from '@/util/api.ts'
 //初始化变量
 const username = ref('')
 const password = ref('')
@@ -24,13 +23,10 @@ const tabChoose = (value) => {
 //登录成功，跳转界面
 const loginTab = async () => {
   const jwt = await login(username.value, password.value)
-
-  const graphqlStore = useGraphqlStore()
-  graphqlStore.setToken(jwt)
+  setToken(jwt)
   await router.push({
     path: '/main'
   })
-
 }
 </script>
 

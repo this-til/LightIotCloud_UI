@@ -5,11 +5,9 @@
 <script setup lang="ts">
 
 import { onMounted, onUnmounted, ref } from "vue"
-import { useGraphqlStore } from "@/util/store"
-import { CarState, subscriptionCarStateReportEvent, unsubscribe } from "@/util/api"
+import { CarState, getDefWebSocketClient, subscriptionCarStateReportEvent, unsubscribe } from "@/util/api"
 import { useRoute } from "vue-router"
 
-const graphqlStore = useGraphqlStore()
 const route = useRoute()
 
 const carState = ref<CarState>({})
@@ -19,7 +17,7 @@ let unsubscriptionCarStateReportEvent: unsubscribe | null = null
 onMounted(() => {
 
   subscriptionCarStateReportEvent(
-    graphqlStore.client,
+    getDefWebSocketClient(),
     Number.parseInt(route.query.id),
     {
       next(value: CarState) {

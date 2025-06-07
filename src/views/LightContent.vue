@@ -1,5 +1,48 @@
 <template>
   <div class="content-grid">
+    <!-- 设备控制 -->
+    <div class="content-section">
+      <div class="section-header">
+        <h2>设备控制</h2>
+      </div>
+      <div class="control-section">
+        <div class="control-item">
+          <div class="control-row">
+            <div class="control-label-wrapper">
+              <span class="control-label">亮度调节</span>
+              <span class="control-value">{{ brightness }}%</span>
+            </div>
+            <el-slider
+              v-model="brightness"
+              :min="0"
+              :max="100"
+              :step="1"
+              :disabled="!light.online"
+              @change="handleBrightnessChange"
+              class="custom-slider"
+            />
+          </div>
+        </div>
+        
+        <div class="control-item">
+          <div class="control-row">
+            <div class="control-label-wrapper">
+              <span class="control-label">自动亮度调节</span>
+              <span class="control-desc">根据环境光线自动调整亮度</span>
+            </div>
+            <el-switch
+              v-model="autoBrightness"
+              :disabled="!light.online"
+              @change="handleAutoBrightnessChange"
+              active-text="开启"
+              inactive-text="关闭"
+              class="custom-switch"
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- 环境数据 -->
     <div class="content-section">
       <div class="section-header">
@@ -121,27 +164,32 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from "vue"
-import { useGraphqlStore } from "@/util/store"
-import { subscriptionLightDataReportEventEvent, subscriptionLightStateReportEvent } from "@/util/api"
+import { computed, onMounted, onUnmounted, ref } from "vue"
+import { computedActivateLight, getDefWebSocketClient, type Light, subscriptionLightDataReportEventEvent, subscriptionLightStateReportEvent } from "@/util/api"
 import type { LightData, LightState, unsubscribe } from "@/util/api"
 import { useRoute } from "vue-router"
 import { Monitor, WindPower, Compass, Sunny, Lightning } from "@element-plus/icons-vue"
+import { computedAsync } from "@vueuse/core"
 
-const graphqlStore = useGraphqlStore()
+//const light = ref<Light>({})
+
+const light = computedActivateLight()
+
 const route = useRoute()
 
 const lightData = ref<LightData>({})
 const lightState = ref<LightState>({})
+const brightness = ref(50)
+const autoBrightness = ref(false)
 
 let unsubscriptionLightStateReportEvent: unsubscribe | null = null
 let unsubscriptionLightDataReportEvent: unsubscribe | null = null
 
-onMounted(() => {
+onMounted(async () => {
   const lightId: number = Number.parseInt(route.query.id)
 
   unsubscriptionLightStateReportEvent = subscriptionLightStateReportEvent(
-    graphqlStore.getClient(),
+    getDefWebSocketClient(),
     lightId,
     {
       next(value: LightState) {
@@ -156,7 +204,7 @@ onMounted(() => {
   )
 
   unsubscriptionLightDataReportEvent = subscriptionLightDataReportEventEvent(
-    graphqlStore.getClient(),
+    getDefWebSocketClient(),
     lightId,
     {
       next(value: LightData) {
@@ -181,6 +229,16 @@ onUnmounted(() => {
     unsubscriptionLightDataReportEvent = null
   }
 })
+
+const handleBrightnessChange = (value: number) => {
+  // TODO: 实现亮度调节API调用
+  console.log('设置亮度:', value)
+}
+
+const handleAutoBrightnessChange = (value: boolean) => {
+  // TODO: 实现自动亮度调节API调用
+  console.log('设置自动亮度:', value)
+}
 </script>
 
 <style scoped>
@@ -248,5 +306,73 @@ onUnmounted(() => {
 .data-value :deep(.el-tag) {
   font-size: 16px;
   padding: 4px 12px;
+}
+
+.control-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 8px 0;
+}
+
+.control-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.control-row {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 8px 0;
+}
+
+.control-label-wrapper {
+  display: flex;
+  flex-direction: column;
+  min-width: 120px;
+}
+
+.control-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #303133;
+  margin-bottom: 4px;
+}
+
+.control-desc {
+  font-size: 12px;
+  color: #909399;
+}
+
+.control-value {
+  font-size: 12px;
+  color: #909399;
+}
+
+:deep(.custom-slider) {
+  flex: 1;
+  margin-right: 16px;
+}
+
+:deep(.custom-slider .el-slider__runway) {
+  height: 4px;
+}
+
+:deep(.custom-slider .el-slider__bar) {
+  height: 4px;
+  background-color: var(--el-color-primary);
+}
+
+:deep(.custom-slider.is-disabled .el-slider__runway) {
+  background-color: #f5f7fa;
+}
+
+:deep(.custom-slider.is-disabled .el-slider__bar) {
+  background-color: #c0c4cc;
+}
+
+:deep(.custom-switch) {
+  margin-left: 8px;
 }
 </style> 

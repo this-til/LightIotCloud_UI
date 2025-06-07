@@ -5,7 +5,8 @@ import axios, { ResponseType } from "axios"
 import type { AxiosInstance, AxiosRequestConfig, AxiosError, RawAxiosRequestHeaders, AxiosHeaders, AxiosResponse, InternalAxiosRequestConfig } from "axios"
 import { ElNotification } from "element-plus"
 import router from "../router"
-import { useGraphqlStore } from "./store"
+import { reactive } from "vue"
+import { computedAsync } from "@vueuse/core"
 
 type ID = number;
 type Int = number;
@@ -88,18 +89,126 @@ export interface TimeRange {
     end: DateTime
 }
 
+const TOKEN_KEY = "auth_token"
 
-// 创建客户端
-export function createWebSocketClient(url: string, jwt: string): Client {
-    return createClient({
-        url: url,
-        connectionParams: {
-            Authorization: jwt,
-            linkType: "WEBSOCKET"
-        }
-    })
+const state = {
+    token: localStorage.getItem(TOKEN_KEY),
+    client: null as Client | null,
+    activateLight: null as Light | null,
+    activateCar: null as Car | null
 }
 
+export const computedActivateLight = () => computedAsync<Light>(async () => {
+    let id = router.currentRoute.value.query.id
+    if (!id) {
+        return null
+    }
+    id = Number(id)
+    if (state.activateLight && state.activateLight.id === id) {
+        return state.activateLight
+    }
+    state.activateLight = await getLightById(id)
+    return state.activateLight
+}, {})
+
+
+export const computedActivateCar = () => computedAsync<Car>(async () => {
+    let id = router.currentRoute.value.query.id
+    if (!id) {
+        return null
+    }
+    id = Number(id)
+    if (state.activateCar && state.activateCar.id === id) {
+        return state.activateCar
+    }
+    return state.activateCar
+}, {})
+
+// 创建客户端
+export function createDefWebSocketClient(): Client {
+    state.client = createClient({
+        url: "/api/graphql",
+        connectionParams: {
+            Authorization: getToken(),
+            linkType: "WEBSOCKET"
+        },
+        on: {
+            closed: (e: any) => {
+                console.log("GraphQL client closed:", e)
+
+                if (e.reason === "Normal Closure") {
+                    return
+                }
+
+                ElNotification({
+                    type: "error",
+                    title: "链接中断",
+                    message: "链接中断，回到主页面",
+                    duration: 3000
+                })
+                router.push({
+                    path: "/main"
+                })
+            },
+            error: (err) => console.error("[GraphQL-Error]", err),
+            message: (msg) => {
+                if (msg.type === "error") {
+                    console.error("[GraphQL-Message-Error]", msg)
+                } else {
+                    console.log("[GraphQL-Message]", msg)
+                }
+            },
+            connected: () => console.debug("[GraphQL-Connected]")
+        }
+    })
+    return state.client
+}
+
+export const getDefWebSocketClient = () => {
+    if (state.client) {
+        return state.client
+    }
+    console.log("GraphQL client is null")
+    router.push({
+        path: isTokenValid(getToken()) ? "/main" : "/"
+    })
+    return null!
+}
+
+export const getToken = (): string => {
+    if (state.token) {
+        return state.token
+    }
+    return ""
+}
+
+export const setToken = (token: string): void => {
+    localStorage.setItem(TOKEN_KEY, token)
+    state.token = token
+}
+
+export const removeToken = (): void => {
+    localStorage.removeItem(TOKEN_KEY)
+}
+
+export const isTokenValid = (token: string | null): boolean => {
+    if (!token) {
+        return false
+    }
+    if (token === "") {
+        return false
+    }
+    try {
+        const payload = JSON.parse(atob(token.split(".")[1]))
+        const currentTime = Math.floor(Date.now() / 1000)
+        return payload.exp > currentTime
+    } catch (e) {
+        return false
+    }
+}
+
+
+export const useStore = () => state
 
 export type unsubscribe = () => void
 
@@ -258,11 +367,10 @@ export const api: AxiosInstance = axios.create(
 // 请求拦截器
 api.interceptors.request.use(
         (config: InternalAxiosRequestConfig) => {
-            const graphqlStore = useGraphqlStore()
-            const token = graphqlStore.getToken()
+            const token = getToken()
 
             // 如果 token 存在且有效，添加到请求头
-            if (token && graphqlStore.isTokenValid(token)) {
+            if (token && isTokenValid(token)) {
                 config.headers = config.headers || {}
                 config.headers.Authorization = `${token}`
             }
@@ -336,8 +444,7 @@ api.interceptors.response.use(
 )
 
 function handleTokenExpiration() {
-    const graphqlStore = useGraphqlStore()
-    graphqlStore.removeToken()
+    removeToken()
 
     // 显示通知并重定向
     ElNotification({
