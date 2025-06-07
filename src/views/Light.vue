@@ -31,6 +31,44 @@
     </el-header>
 
     <el-main>
+      <el-card class="control-card">
+        <template #header>
+          <div class="card-header">
+            <span>设备控制</span>
+          </div>
+        </template>
+        
+        <div class="control-section">
+          <div class="control-item">
+            <div class="control-row">
+              <span class="control-label">亮度调节</span>
+              <el-slider
+                v-model="brightness"
+                :min="0"
+                :max="100"
+                :step="1"
+                show-input
+                :disabled="!light.online"
+                @change="handleBrightnessChange"
+              />
+            </div>
+          </div>
+          
+          <div class="control-item">
+            <div class="control-row">
+              <span class="control-label">自动亮度调节</span>
+              <el-switch
+                v-model="autoBrightness"
+                :disabled="!light.online"
+                @change="handleAutoBrightnessChange"
+                active-text="开启"
+                inactive-text="关闭"
+              />
+            </div>
+          </div>
+        </div>
+      </el-card>
+
       <RouterView />
     </el-main>
     
@@ -54,6 +92,9 @@ const graphqlStore = useGraphqlStore()
 const route = useRoute()
 const router = useRouter()
 const light = ref<Light>({})
+
+const brightness = ref(50)
+const autoBrightness = ref(false)
 
 const goBack = () => {
   router.back()
@@ -82,6 +123,16 @@ const handleSelect = (key: string) => {
       console.log("实时对话 - 待实现")
       break
   }
+}
+
+const handleBrightnessChange = (value: number) => {
+  // TODO: 实现亮度调节API调用
+  console.log('设置亮度:', value)
+}
+
+const handleAutoBrightnessChange = (value: boolean) => {
+  // TODO: 实现自动亮度调节API调用
+  console.log('设置自动亮度:', value)
 }
 
 onMounted(async () => {
@@ -144,4 +195,58 @@ onMounted(async () => {
   padding: 0px;
 }
 
+.control-card {
+  margin-bottom: 20px;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.control-section {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.control-item {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.control-row {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.control-label {
+  font-size: 16px;
+  font-weight: 500;
+  color: #303133;
+  min-width: 100px;
+}
+
+:deep(.el-slider) {
+  flex: 1;
+}
+
+:deep(.el-switch) {
+  margin-left: 8px;
+}
+
+:deep(.el-slider.is-disabled .el-slider__runway) {
+  background-color: #f5f7fa;
+}
+
+:deep(.el-slider.is-disabled .el-slider__bar) {
+  background-color: #c0c4cc;
+}
+
+:deep(.el-switch.is-disabled) {
+  opacity: 0.6;
+}
 </style>
