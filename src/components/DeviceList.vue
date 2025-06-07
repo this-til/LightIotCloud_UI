@@ -1,7 +1,7 @@
 ﻿<template>
   <div class="device-list-container">
     <div class="header">
-      <h1 class="title">智能灯杆设备管理</h1>
+      <h1 class="title">{{ props.title }}</h1>
       <div class="stats">
         <el-statistic title="总设备数" :value="deviceList.length" />
         <el-statistic title="在线设备" :value="onlineDeviceCount" class="ml-8" />
@@ -11,8 +11,9 @@
 
     <div class="search-bar">
       <el-input
+
         v-model="searchQuery"
-        placeholder="搜索设备编号..."
+        placeholder="搜索设备..."
         prefix-icon="Search"
         clearable
         class="search-input"
@@ -29,11 +30,10 @@
         :data="paginatedDeviceList"
         stripe
         highlight-current-row
-        @row-click="handleRowClick"
         class="device-table"
         height="100%"
       >
-        <el-table-column prop="deviceId" label="设备编号" width="200">
+        <el-table-column prop="id" label="设备编号" width="200">
           <template #default="{ row }">
             <div class="device-id">
               <el-icon class="device-icon">
@@ -44,30 +44,30 @@
           </template>
         </el-table-column>
 
-        <el-table-column prop="deviceName" label="设备名称" min-width="180" />
+        <el-table-column prop="name" label="设备名称" min-width="180" />
 
         <el-table-column prop="status" label="在线状态" width="120">
           <template #default="{ row }">
             <el-tag
-              :type="row.status === 'online' ? 'success' : 'danger'"
-              :effect="row.status === 'online' ? 'light' : 'plain'"
+              :type="row.online ? 'success' : 'danger'"
+              :effect="row.online ? 'light' : 'plain'"
             >
               <el-icon class="status-icon">
-                <CircleCheckFilled v-if="row.status === 'online'" />
+                <CircleCheckFilled v-if="row.online === 'online'" />
                 <CircleCloseFilled v-else />
               </el-icon>
-              {{ row.status === "online" ? "在线" : "离线" }}
+              {{ row.online ? "在线" : "离线" }}
             </el-tag>
           </template>
         </el-table-column>
 
-        <el-table-column prop="lastSeen" label="最后跟新时间" width="180">
+        <el-table-column prop="updatedAt" label="最后跟新时间" width="320">
           <template #default="{ row }">
             <div class="last-seen">
               <el-icon>
                 <Clock />
               </el-icon>
-              <span>{{ formatTime(row.lastSeen) }}</span>
+              <span>{{ formatTime(row.updatedAt) }}</span>
             </div>
           </template>
         </el-table-column>
@@ -77,7 +77,7 @@
             <el-button
               type="primary"
               size="small"
-              @click.stop="viewDetails(row)"
+              @click.stop="props.viewDetails(row)"
               :icon="View"
             >
               查看详情
@@ -112,12 +112,14 @@ import {
   View,
   Search
 } from "@element-plus/icons-vue"
-import { Device } from "@/util/api.js"
+import type { Device } from "@/util/api.js"
 
 const props = defineProps<Props>()
 
 interface Props {
-  deviceList: Device[];
+  title: string
+  deviceList: Device[]
+  viewDetails: (device: Device) => void
 }
 
 // 响应式数据
@@ -129,27 +131,28 @@ const pageSize = ref(20)
 
 // 计算属性
 const onlineDeviceCount = computed(() => {
-  return props.deviceList.value.filter(device => device.status === "online").length
+  return props.deviceList.filter(device => device.online).length
 })
 
 const offlineDeviceCount = computed(() => {
-  return props.deviceList.value.filter(device => device.status === "offline").length
+  return props.deviceList.filter(device => !device.online).length
 })
 
 const filteredDeviceList = computed(() => {
-  let filtered = props.deviceList.value
+  let filtered = props.deviceList
 
   // 按搜索查询过滤
   if (searchQuery.value) {
     filtered = filtered.filter(device =>
-      device.deviceId.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-      device.deviceName.toLowerCase().includes(searchQuery.value.toLowerCase())
+      device.name.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
+      device.id.toString().toLowerCase().includes(searchQuery.value.toLowerCase())
     )
   }
 
   // 按状态过滤
   if (statusFilter.value) {
-    filtered = filtered.filter(device => device.status === statusFilter.value)
+    const target: Boolean = statusFilter.value === "online"
+    filtered = filtered.filter(device => device.online == target)
   }
 
   return filtered
@@ -161,21 +164,7 @@ const paginatedDeviceList = computed<Device[]>(() => {
   return filteredDeviceList.value.slice(start, end)
 })
 
-// 方法
-const handleRowClick = (row) => {
-  viewDetails(row)
-}
-
-const viewDetails = (device) => {
-  // 这里可以使用 Vue Router 进行页面跳转
-  // router.push(`/device/${device.deviceId}`)
-
-  // 模拟跳转，实际项目中替换为真实的路由跳转
-  ElMessage.success(`跳转到设备 ${device.deviceId} 的详细页面`)
-  console.log("跳转到设备详情页面:", device)
-}
-
-const formatTime = (date) => {
+const formatTime = (date: Date) => {
   return date.toLocaleString("zh-CN", {
     year: "numeric",
     month: "2-digit",
@@ -183,12 +172,6 @@ const formatTime = (date) => {
     hour: "2-digit",
     minute: "2-digit"
   })
-}
-
-const getTemperatureClass = (temperature) => {
-  if (temperature > 30) return "temperature-high"
-  if (temperature < 20) return "temperature-low"
-  return "temperature-normal"
 }
 
 const handleSizeChange = (val) => {
@@ -250,10 +233,7 @@ const handleCurrentChange = (val) => {
 
 .table-container {
   flex-grow: 1;
-  background: white;
   border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  margin-bottom: 20px;
   overflow: hidden;
   display: flex;
   flex-direction: column;

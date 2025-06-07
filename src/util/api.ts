@@ -1,9 +1,11 @@
 ﻿import type { Client, FormattedExecutionResult, Sink } from "graphql-ws"
 import { createClient } from "graphql-ws"
 import { WebSocket } from "vite"
-import axios from "axios"
+import axios, { ResponseType } from "axios"
 import type { AxiosInstance, AxiosRequestConfig, AxiosError, RawAxiosRequestHeaders, AxiosHeaders, AxiosResponse, InternalAxiosRequestConfig } from "axios"
-import { getToken, isTokenValid, removeToken } from "./auth"
+import { ElNotification } from "element-plus"
+import router from "../router"
+import { useGraphqlStore } from "./store"
 
 type ID = number;
 type Int = number;
@@ -23,10 +25,18 @@ export enum OnlineState {
     OFFLINE = "OFFLINE",
 }
 
+enum ResultType {
+    SUCCESSFUL = "SUCCESSFUL",
+    FAIL = "FAIL",
+    ERROR = "ERROR",
+}
+
+
 export interface DeviceOnlineStateSwitchEvent {
     onlineState: OnlineState
     deviceType: DeviceType
     deviceId: number
+    deviceName: string
 
     [key: string]: unknown;
 }
@@ -61,7 +71,6 @@ export interface LightData {
     windDirection: number | undefined
 }
 
-
 export interface LightState {
     enableWirelessCharging: Boolean
     wirelessChargingPower: number
@@ -74,11 +83,11 @@ export interface CarState {
     [key: string]: unknown;
 }
 
-
 export interface TimeRange {
     start: DateTime
     end: DateTime
 }
+
 
 // 创建客户端
 export function createWebSocketClient(url: string, jwt: string): Client {
@@ -95,11 +104,12 @@ export function createWebSocketClient(url: string, jwt: string): Client {
 export type unsubscribe = () => void
 
 export const deviceOnlineStateSwitchEventGql = `
-    subscription deviceOnlineStateSwitchEventGql{
+    subscription {
         deviceOnlineStateSwitchEvent {
             onlineState
             deviceType
-            id
+            deviceId
+            deviceName
         }
     }
     `
@@ -114,7 +124,7 @@ export function subscriptionDeviceOnlineStateSwitchEvent(
             },
             mapSink<FormattedExecutionResult<Record<string, unknown>, unknown>, DeviceOnlineStateSwitchEvent>(
                     sink,
-                    res => res.data as DeviceOnlineStateSwitchEvent
+                    res => res.data?.deviceOnlineStateSwitchEvent as DeviceOnlineStateSwitchEvent
             )
     )
 }
@@ -138,12 +148,46 @@ export function subscriptionLightStateReportEvent(
             {
                 query: lightStateReportEventGql,
                 variables: {
-                    lightId
+                    lightId: Number.parseInt(String(lightId))
                 }
             },
             mapSink<FormattedExecutionResult<Record<string, unknown>, unknown>, LightState>(
                     sink,
-                    res => res.data as LightState
+                    res => res.data?.lightStateReportEvent as LightState
+            )
+    )
+
+}
+
+export const lightDataReportEventGql = `
+    subscription lightDataReportEvent($lightId : Int!){
+        lightDataReportEvent(lightId : $lightId) {
+            humidity
+            temperature
+            pm10
+            pm2_5
+            illumination
+            windSpeed
+            windDirection
+        }
+    }
+`
+
+export function subscriptionLightDataReportEventEvent(
+        client: Client,
+        lightId: number,
+        sink: Sink<LightData>
+): unsubscribe {
+    return client.subscribe(
+            {
+                query: lightDataReportEventGql,
+                variables: {
+                    lightId
+                }
+            },
+            mapSink<FormattedExecutionResult<Record<string, unknown>, unknown>, LightData>(
+                    sink,
+                    res => res.data?.lightDataReportEvent as LightData
             )
     )
 
@@ -164,14 +208,14 @@ export function subscriptionCarStateReportEvent(
 ): unsubscribe {
     return client.subscribe(
             {
-                query: lightStateReportEventGql,
+                query: carStateReportEventGql,
                 variables: {
                     carId
                 }
             },
             mapSink<FormattedExecutionResult<Record<string, unknown>, unknown>, CarState>(
                     sink,
-                    res => res.data as CarState
+                    res => res.data?.carStateReportEvent as CarState
             )
     )
 
@@ -214,10 +258,11 @@ export const api: AxiosInstance = axios.create(
 // 请求拦截器
 api.interceptors.request.use(
         (config: InternalAxiosRequestConfig) => {
-            const token = getToken()
+            const graphqlStore = useGraphqlStore()
+            const token = graphqlStore.getToken()
 
             // 如果 token 存在且有效，添加到请求头
-            if (token && isTokenValid(token)) {
+            if (token && graphqlStore.isTokenValid(token)) {
                 config.headers = config.headers || {}
                 config.headers.Authorization = `${token}`
             }
@@ -229,19 +274,87 @@ api.interceptors.request.use(
         }
 )
 
+const JWTDecodeException: string = "JWTDecodeException"
+
 // 响应拦截器 - 处理 token 过期
 api.interceptors.response.use(
-        response => response,
+        response => {
+            const g: GraphqlResponse = response.data as GraphqlResponse
+
+            // 空响应处理
+            if (g == null) {
+                ElNotification({
+                    type: "error",
+                    title: "请求错误",
+                    message: "未收到有效响应数据",
+                    duration: 8000
+                })
+                return response
+            }
+
+            // 处理 GraphQL 错误
+            const errors = g.errors
+            if (errors && errors.length > 0) {
+                let hasTokenError = false
+                const errorMessages: string[] = []
+
+                errors.forEach((error: Record<string, unknown>) => {
+                    const extensions = (error.extensions || {}) as ErrorExtensions
+                    const message = (error.message || "未知错误") as string
+
+                    // 检测 JWT 异常
+                    if (extensions?.classification === "JWTDecodeException") {
+                        hasTokenError = true
+                        // 避免重复添加消息
+                        if (!errorMessages.includes("身份验证失效")) {
+                            errorMessages.push("身份验证失效，请重新登录")
+                        }
+                    } else {
+                        errorMessages.push(message)
+                    }
+                })
+
+                // 优先处理 token 异常
+                if (hasTokenError) {
+                    handleTokenExpiration()
+                }
+                // 显示其他错误通知
+                else if (errorMessages.length > 0) {
+                    ElNotification({
+                        type: "error",
+                        title: `请求错误 (${errors.length}个问题)`,
+                        message: errorMessages.join("；"),
+                        duration: 8000
+                    })
+                }
+            }
+
+            return response
+        },
         (error: AxiosError) => {
             if (error.response?.status === 401) {
-                // token 过期或无效的处理
-                removeToken()
-                // 这里可以触发全局登出事件或重定向
-                console.warn("Token expired, redirecting to login...")
+                handleTokenExpiration()
             }
             return Promise.reject(error)
         }
 )
+
+function handleTokenExpiration() {
+    const graphqlStore = useGraphqlStore()
+    graphqlStore.removeToken()
+
+    // 显示通知并重定向
+    ElNotification({
+        type: "warning",
+        title: "会话过期",
+        message: "登录状态已失效，请重新登录",
+        duration: 3000
+    })
+
+    router.push({
+        path: "/login"
+    })
+}
 
 
 export interface GraphqlErrors {
@@ -266,14 +379,14 @@ export interface ErrorExtensions {
     [key: string]: unknown;
 }
 
-export interface GraphqlResponse<D = Record<string, unknown>> {
+export interface GraphqlResponse<D> {
     data?: D
     errors?: Record<string, unknown>[]
 
     [key: string]: unknown;
 }
 
-export async function postGql<D = Record<string, unknown>>(gql: string, variables: Record<string, unknown> = {}, headers: Record<string, unknown> = {}): Promise<GraphqlResponse<D>> {
+export async function postGql<D>(gql: string, variables: Record<string, unknown> = {}, headers: Record<string, unknown> = {}): Promise<GraphqlResponse<D>> {
     const axiosResponse = await api.post(
             "/graphql",
             {
@@ -337,8 +450,60 @@ export async function jwtEffective(jwt: string): Promise<boolean> {
     return response.data?.jwtEffective || false
 }
 
+export const LIGHT_QUERY = `
+query getLight($id: Int) {
+    self {
+        getLightById(id: $id) {
+            id
+            userId
+            name
+            createdAt
+            updatedAt
+            online
+        }
+    }
+}
+`
+
+export async function getLightById(id: string): Promise<Light> {
+    const graphqlResponse = await postGql<
+            {
+                self: {
+                    getLightById: Light
+                }
+            }
+    >(LIGHTS_QUERY, { id })
+    return graphqlResponse.data?.self?.getLightById as Light
+}
+
+export const CART_QUERY = `
+query cart {
+    self {
+        getCarById(id: $id) {
+            id
+            userId
+            name
+            createdAt
+            updatedAt
+            online
+        }
+    }
+}
+`
+
+export async function getCarById(id: string): Promise<Car> {
+    const graphqlResponse = await postGql<
+            {
+                self: {
+                    getCarById: Car
+                }
+            }
+    >(CART_QUERY, { id })
+    return graphqlResponse.data?.self?.getCarById as Car
+}
+
 export const LIGHTS_QUERY = `
-query lights {
+query {
   self {
     lights {
       id
@@ -351,13 +516,19 @@ query lights {
 }
 `
 
-export async function lights(): Promise<Light[]> {
-    const graphqlResponse = await postGql<{ self: { lights: Light[] } }>(LIGHTS_QUERY)
+export async function getLightList(): Promise<Light[]> {
+    const graphqlResponse = await postGql<
+            {
+                self: {
+                    lights: Light[]
+                }
+            }
+    >(LIGHTS_QUERY)
     return graphqlResponse.data?.self?.lights as Light[]
 }
 
 export const CARS_QUERY = `
-query GetLights {
+query {
   self {
     cars {
       id
@@ -370,8 +541,14 @@ query GetLights {
 }
 `
 
-export async function cars(): Promise<Car[]> {
-    const graphqlResponse = await postGql<{ self: { cars: Car[] } }>(CARS_QUERY)
+export async function getCarList(): Promise<Car[]> {
+    const graphqlResponse = await postGql<
+            {
+                self: {
+                    cars: Car[]
+                }
+            }
+    >(CARS_QUERY)
     return graphqlResponse.data?.self?.cars as Car[]
 }
 
@@ -400,15 +577,17 @@ export const LIGHT_DATA_QUERY = `
  * @param lightId 灯设备ID
  * @param timeRange 时间范围（可选）
  */
-export async function getLightHistory(
-        lightId: string,
+export async function getLightHistoryData(
+        lightId: number,
         timeRange?: TimeRange
 ): Promise<LightData[]> {
 
     const response = await postGql<
             {
                 self: {
-                    datas: LightData[]
+                    getLightById: {
+                        datas: LightData[]
+                    }
                 }
             }
     >(
@@ -419,7 +598,84 @@ export async function getLightHistory(
             }
     )
 
-    return response.data?.self?.datas as LightData[]
+    return response.data?.self?.getLightById?.datas as LightData[]
 
 }
 
+export const SET_LIGHT_GEAR_MUTATION = `
+mutation setGear($lightId: ID!, $value: Int!) {
+    self{
+        getLightById(id: $lightId) {
+            setGear(value: $value) {
+                resultType
+            }
+        }
+    }
+}
+`
+
+export async function setLightGear(
+        lightId: ID,
+        value: Int
+): Promise<ResultType> {
+
+    const response = await postGql<
+            {
+                self: {
+                    getLightById: {
+                        setGear: {
+                            resultType: ResultType
+                        }
+                    }
+                }
+            }
+    >(
+            SET_LIGHT_GEAR_MUTATION,
+            {
+                lightId,
+                value
+            }
+    )
+
+    return response?.data?.self?.getLightById?.setGear?.resultType as ResultType
+
+}
+
+export const SET_AUTOMATIC_GEAR_MUTATION = `
+mutation setAutomaticGear($lightId: ID!, $value: Int!) {
+    self{
+        getLightById(id: $lightId) {
+            setAutomaticGear(value: $value) {
+                resultType
+            }
+        }
+    }
+}
+`
+
+export async function setAutomaticGear(
+        lightId: ID,
+        value: Boolean
+): Promise<ResultType> {
+
+    const response = await postGql<
+            {
+                self: {
+                    getLightById: {
+                        setAutomaticGear: {
+                            resultType: ResultType
+                        }
+                    }
+                }
+            }
+    >(
+            SET_AUTOMATIC_GEAR_MUTATION,
+            {
+                lightId,
+                value
+            }
+    )
+
+    return response?.data?.self?.getLightById?.setAutomaticGear?.resultType as ResultType
+
+}

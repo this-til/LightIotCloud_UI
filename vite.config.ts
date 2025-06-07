@@ -34,9 +34,7 @@ export default defineConfig(
                         ws: true,
                         changeOrigin: true,
                         //secure: false,//开启代理
-                        pathRewrite: {
-                            "^/api": ""
-                        }
+                        rewrite: (path) => path.replace(/^\/api/, "")
                     }
                 }
             }

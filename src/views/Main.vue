@@ -98,27 +98,80 @@
 </template>
 
 <script lang="ts" setup>
-import { ref } from "vue"
+import { onMounted, onUnmounted, ref } from "vue"
 import { Cpu, Menu as IconMenu, Message, Setting } from "@element-plus/icons-vue"
 import { RouterView, useRoute } from "vue-router"
 import router from "@/router"
+import { createWebSocketClient, subscriptionDeviceOnlineStateSwitchEvent, unsubscribe } from "@/util/api"
+import type { DeviceOnlineStateSwitchEvent } from "@/util/api"
+import { ElNotification } from "element-plus"
+import { createClient } from "graphql-ws"
+import type { Client } from "graphql-ws"
+import { useGraphqlStore } from "@/util/store"
 
 const route = useRoute()
-const activeMenu = ref('1-1')
+const activeMenu = ref("1-1")
 
 function displayAllLight() {
-  activeMenu.value = '1-1'
+  activeMenu.value = "1-1"
   router.push({
-    path: 'allLight'
+    path: "/allLight"
   })
 }
 
 function displayAllCar() {
-  activeMenu.value = '1-2'
+  activeMenu.value = "1-2"
   router.push({
-    path: 'allCar'
+    path: "/allCar"
   })
 }
+
+const graphqlStore = useGraphqlStore()
+
+let unsubscribeDeviceOnlineStateSwitchEvent: unsubscribe | null = null
+
+onMounted(() => {
+
+  if (graphqlStore.getToken() === "") {
+    console.log("the token is null, to login")
+    router.push({
+      path: "/"
+    })
+  }
+
+  graphqlStore.initializeClient()
+  if (graphqlStore.client) {
+    unsubscribeDeviceOnlineStateSwitchEvent = subscriptionDeviceOnlineStateSwitchEvent(
+      graphqlStore.client,
+      {
+        next(value: DeviceOnlineStateSwitchEvent) {
+          ElNotification(
+            {
+              type: value.onlineState
+                ? "success"
+                : "warning",
+              title: value.onlineState
+                ? "设备上线"
+                : "设备离线",
+              message: value.deviceName
+            }
+          )
+        },
+        complete(): void {
+        },
+        error(error: unknown): void {
+        }
+      }
+    )
+  }
+})
+
+onUnmounted(() => {
+  if (unsubscribeDeviceOnlineStateSwitchEvent) {
+    unsubscribeDeviceOnlineStateSwitchEvent()
+    unsubscribeDeviceOnlineStateSwitchEvent = null
+  }
+})
 </script>
 
 <style scoped>

@@ -26,22 +26,22 @@ const router = createRouter({
             component: Main,
             children: [
                 {
-                    path: "allLight",
+                    path: "/allLight",
                     name: "allLight",
                     component: AllLight
                 },
                 {
-                    path: "allCar",
+                    path: "/allCar",
                     name: "allCar",
                     component: AllCar
                 },
                 {
-                    path: "light",
+                    path: "/light",
                     name: "light",
                     component: Light
                 },
                 {
-                    path: "car",
+                    path: "/car",
                     name: "car",
                     component: Car
                 }
