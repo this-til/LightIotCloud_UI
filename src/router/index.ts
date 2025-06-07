@@ -6,6 +6,8 @@ import AllLight from "../views/AllLight.vue"
 import AllCar from "../views/AllCar.vue"
 import Light from "../views/Light.vue"
 import Car from "../views/Car.vue"
+import LightContent from "../views/LightContent.vue"
+import LightHistoryData from "../views/LightHistoryData.vue"
 
 
 const router = createRouter({
@@ -17,32 +19,36 @@ const router = createRouter({
         },
         {
             path: "/",
-            name: "loginIndex",
             component: Login
         },
         {
             path: "/main",
-            name: "main",
             component: Main,
             children: [
                 {
                     path: "/allLight",
-                    name: "allLight",
                     component: AllLight
                 },
                 {
                     path: "/allCar",
-                    name: "allCar",
                     component: AllCar
                 },
                 {
                     path: "/light",
-                    name: "light",
-                    component: Light
+                    component: Light,
+                    children: [
+                        {
+                            path: "/light",
+                            component: LightContent
+                        },
+                        {
+                            path: "/lightHistoryData",
+                            component: LightHistoryData
+                        }
+                    ]
                 },
                 {
                     path: "/car",
-                    name: "car",
                     component: Car
                 }
             ]

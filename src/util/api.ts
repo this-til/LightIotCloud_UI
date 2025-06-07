@@ -305,10 +305,6 @@ api.interceptors.response.use(
                     // 检测 JWT 异常
                     if (extensions?.classification === "JWTDecodeException") {
                         hasTokenError = true
-                        // 避免重复添加消息
-                        if (!errorMessages.includes("身份验证失效")) {
-                            errorMessages.push("身份验证失效，请重新登录")
-                        }
                     } else {
                         errorMessages.push(message)
                     }
@@ -451,7 +447,7 @@ export async function jwtEffective(jwt: string): Promise<boolean> {
 }
 
 export const LIGHT_QUERY = `
-query getLight($id: Int) {
+query getLight($id: ID!) {
     self {
         getLightById(id: $id) {
             id
@@ -465,19 +461,19 @@ query getLight($id: Int) {
 }
 `
 
-export async function getLightById(id: string): Promise<Light> {
+export async function getLightById(id: number): Promise<Light> {
     const graphqlResponse = await postGql<
             {
                 self: {
                     getLightById: Light
                 }
             }
-    >(LIGHTS_QUERY, { id })
+    >(LIGHT_QUERY, { id })
     return graphqlResponse.data?.self?.getLightById as Light
 }
 
 export const CART_QUERY = `
-query cart {
+query getCarById($id: ID!){
     self {
         getCarById(id: $id) {
             id
@@ -491,7 +487,7 @@ query cart {
 }
 `
 
-export async function getCarById(id: string): Promise<Car> {
+export async function getCarById(id: number): Promise<Car> {
     const graphqlResponse = await postGql<
             {
                 self: {

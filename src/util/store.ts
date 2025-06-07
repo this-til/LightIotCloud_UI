@@ -66,7 +66,7 @@ export const useGraphqlStore = defineStore(
                     }
                     console.log("GraphQL client is null")
                     router.push({
-                        path: "/main"
+                        path: this.isTokenValid(this.getToken()) ? "/main" : "/"
                     })
                     return null
                 },
@@ -85,6 +85,9 @@ export const useGraphqlStore = defineStore(
                 },
                 isTokenValid(token: string | null): boolean {
                     if (!token) {
+                        return false
+                    }
+                    if (token === "") {
                         return false
                     }
                     try {

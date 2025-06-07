@@ -28,7 +28,7 @@ onMounted(
 
 const viewDetails = (d: Device) => {
   router.push({
-    name: "light",
+    path: "light",
     query: {
       "id": d.id.toString()
     }

@@ -102,7 +102,7 @@ import { onMounted, onUnmounted, ref } from "vue"
 import { Cpu, Menu as IconMenu, Message, Setting } from "@element-plus/icons-vue"
 import { RouterView, useRoute } from "vue-router"
 import router from "@/router"
-import { createWebSocketClient, subscriptionDeviceOnlineStateSwitchEvent, unsubscribe } from "@/util/api"
+import { createWebSocketClient, OnlineState, subscriptionDeviceOnlineStateSwitchEvent, unsubscribe } from "@/util/api"
 import type { DeviceOnlineStateSwitchEvent } from "@/util/api"
 import { ElNotification } from "element-plus"
 import { createClient } from "graphql-ws"
@@ -137,33 +137,35 @@ onMounted(() => {
     router.push({
       path: "/"
     })
+    return
   }
 
-  graphqlStore.initializeClient()
-  if (graphqlStore.client) {
-    unsubscribeDeviceOnlineStateSwitchEvent = subscriptionDeviceOnlineStateSwitchEvent(
-      graphqlStore.client,
-      {
-        next(value: DeviceOnlineStateSwitchEvent) {
-          ElNotification(
-            {
-              type: value.onlineState
-                ? "success"
-                : "warning",
-              title: value.onlineState
-                ? "设备上线"
-                : "设备离线",
-              message: value.deviceName
-            }
-          )
-        },
-        complete(): void {
-        },
-        error(error: unknown): void {
-        }
-      }
-    )
+  if (!graphqlStore.client) {
+    graphqlStore.initializeClient()
   }
+
+  unsubscribeDeviceOnlineStateSwitchEvent = subscriptionDeviceOnlineStateSwitchEvent(
+    graphqlStore.client,
+    {
+      next(value: DeviceOnlineStateSwitchEvent) {
+        ElNotification(
+          {
+            type: value.onlineState === OnlineState.ONLINE
+              ? "success"
+              : "warning",
+            title: value.onlineState === OnlineState.ONLINE
+              ? "设备上线"
+              : "设备离线",
+            message: value.deviceName
+          }
+        )
+      },
+      complete(): void {
+      },
+      error(error: unknown): void {
+      }
+    }
+  )
 })
 
 onUnmounted(() => {
