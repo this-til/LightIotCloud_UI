@@ -91,7 +91,11 @@ import { useRoute } from "vue-router"
 import * as echarts from "echarts"
 import type { EChartsOption } from "echarts"
 import { getLightHistoryData } from "@/util/api"
-import type { LightData, TimeRange } from "@/util/api"
+import type { LightData, TimeRange, Light } from "@/util/api"
+
+const props = defineProps<{
+  light: Light
+}>()
 
 const route = useRoute()
 const lightId = Number(route.query.id)

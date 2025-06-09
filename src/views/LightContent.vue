@@ -23,7 +23,7 @@
             />
           </div>
         </div>
-        
+
         <div class="control-item">
           <div class="control-row">
             <div class="control-label-wrapper">
@@ -165,15 +165,16 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from "vue"
-import { computedActivateLight, getDefWebSocketClient, type Light, subscriptionLightDataReportEventEvent, subscriptionLightStateReportEvent } from "@/util/api"
-import type { LightData, LightState, unsubscribe } from "@/util/api"
+import { getDefWebSocketClient, subscriptionLightDataReportEventEvent, subscriptionLightStateReportEvent, setLightGear, setAutomaticGear, SUCCESSFUL } from "@/util/api"
+import type {  Light, LightData, LightState, unsubscribe } from "@/util/api"
 import { useRoute } from "vue-router"
 import { Monitor, WindPower, Compass, Sunny, Lightning } from "@element-plus/icons-vue"
 import { computedAsync } from "@vueuse/core"
+import { ElNotification } from "element-plus"
 
-//const light = ref<Light>({})
-
-const light = computedActivateLight()
+const props = defineProps<{
+  light: Light
+}>()
 
 const route = useRoute()
 
@@ -230,14 +231,62 @@ onUnmounted(() => {
   }
 })
 
-const handleBrightnessChange = (value: number) => {
-  // TODO: 实现亮度调节API调用
-  console.log('设置亮度:', value)
+const handleBrightnessChange = async (value: number) => {
+  try {
+    const result = await setLightGear(Number(route.query.id), value)
+    if (result === SUCCESSFUL) {
+      ElNotification({
+        type: "success",
+        title: "设置成功",
+        message: `亮度已设置为 ${value}%`,
+        duration: 2000
+      })
+    } else {
+      ElNotification({
+        type: "error",
+        title: "设置失败",
+        message: "亮度设置失败，请重试",
+        duration: 2000
+      })
+    }
+  } catch (error) {
+    console.error("设置亮度失败:", error)
+    ElNotification({
+      type: "error",
+      title: "设置失败",
+      message: "设置亮度时发生错误",
+      duration: 2000
+    })
+  }
 }
 
-const handleAutoBrightnessChange = (value: boolean) => {
-  // TODO: 实现自动亮度调节API调用
-  console.log('设置自动亮度:', value)
+const handleAutoBrightnessChange = async (value: boolean) => {
+  try {
+    const result = await setAutomaticGear(Number(route.query.id), value === 1)
+    if (result === SUCCESSFUL) {
+      ElNotification({
+        type: "success",
+        title: "设置成功",
+        message: `自动亮度调节已${value ? "开启" : "关闭"}`,
+        duration: 2000
+      })
+    } else {
+      ElNotification({
+        type: "error",
+        title: "设置失败",
+        message: "自动亮度设置失败，请重试",
+        duration: 2000
+      })
+    }
+  } catch (error) {
+    console.error("设置自动亮度失败:", error)
+    ElNotification({
+      type: "error",
+      title: "设置失败",
+      message: "设置自动亮度时发生错误",
+      duration: 2000
+    })
+  }
 }
 </script>
 

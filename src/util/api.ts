@@ -16,20 +16,30 @@ type Number = number;
 type DateTime = Date;
 type String = string;
 
+export const CAR = "CAR"
+export const LIGHT = "LIGHT"
+
 export enum DeviceType {
-    CAR = "CAR",
-    LIGHT = "LIGHT",
+    CAR = CAR,
+    LIGHT = LIGHT,
 }
+
+export const ONLINE = "ONLINE"
+export const OFFLINE = "OFFLINE"
 
 export enum OnlineState {
-    ONLINE = "ONLINE",
-    OFFLINE = "OFFLINE",
+    ONLINE = ONLINE,
+    OFFLINE = OFFLINE,
 }
 
-enum ResultType {
-    SUCCESSFUL = "SUCCESSFUL",
-    FAIL = "FAIL",
-    ERROR = "ERROR",
+export const SUCCESSFUL = "SUCCESSFUL"
+export const FAIL = "FAIL"
+export const ERROR = "ERROR"
+
+export enum ResultType {
+    SUCCESSFUL = SUCCESSFUL,
+    FAIL = FAIL,
+    ERROR = ERROR,
 }
 
 
@@ -89,6 +99,42 @@ export interface TimeRange {
     end: DateTime
 }
 
+export interface Page {
+    current: number
+    size: number
+    total: number
+    searchCount: number
+}
+
+export interface DetectionItem {
+    name: string
+}
+
+export interface DetectionModel {
+    name: string
+    items: DetectionItem[]
+}
+
+export interface Detection {
+    id: number
+    keyframeId: number
+    itemId: number
+    x: number
+    y: number
+    w: number
+    h: number
+    probability: number
+    model: string
+    item: string
+}
+
+export interface DetectionKeyframe {
+    id: number
+    lightId: number
+    time: Date
+    detections: Detection[]
+}
+
 const TOKEN_KEY = "auth_token"
 
 const state = {
@@ -126,12 +172,22 @@ export const computedActivateCar = () => computedAsync<Car>(async () => {
 
 // 创建客户端
 export function createDefWebSocketClient(): Client {
-    state.client = createClient({
+
+    if (state.client) {
+        state.client.terminate()
+        state.client = undefined
+    }
+
+    let activeSocket
+    let timedOut
+
+    activeSocket = state.client = createClient({
         url: "/api/graphql",
         connectionParams: {
             Authorization: getToken(),
             linkType: "WEBSOCKET"
         },
+        keepAlive: 10_000,
         on: {
             closed: (e: any) => {
                 console.log("GraphQL client closed:", e)
@@ -149,6 +205,18 @@ export function createDefWebSocketClient(): Client {
                 router.push({
                     path: "/main"
                 })
+            },
+            ping: (received) => {
+                if (!received) {
+                     timedOut = setTimeout(() => {
+                        state.client.terminate()
+                    }, 5_000)
+                }
+            },
+            pong: (received) => {
+                if (received) {
+                    clearTimeout(timedOut)
+                }
             },
             error: (err) => console.error("[GraphQL-Error]", err),
             message: (msg) => {
@@ -745,7 +813,7 @@ export async function setLightGear(
 }
 
 export const SET_AUTOMATIC_GEAR_MUTATION = `
-mutation setAutomaticGear($lightId: ID!, $value: Int!) {
+mutation setAutomaticGear($lightId: ID!, $value: Boolean!) {
     self{
         getLightById(id: $lightId) {
             setAutomaticGear(value: $value) {
@@ -781,4 +849,113 @@ export async function setAutomaticGear(
 
     return response?.data?.self?.getLightById?.setAutomaticGear?.resultType as ResultType
 
+}
+
+export const USER_MODELS_QUERY = `
+query {
+  self {
+    model {
+      name
+      items {
+        name
+      }
+    }
+  }
+}
+`
+
+export async function getUserModels(): Promise<DetectionModel[]> {
+    const graphqlResponse = await postGql<
+            {
+                self: {
+                    model: DetectionModel[]
+                }
+            }
+    >(USER_MODELS_QUERY)
+    return graphqlResponse.data?.self?.model as DetectionModel[]
+}
+
+export const DETECTION_KEYFRAMES_QUERY = `
+query getDetectionKeyframes($lightId: ID!, $page: Page, $timeRange: TimeRange) {
+    self {
+        getLightById(id: $lightId) {
+            detectionKeyframes(page: $page, timeRange: $timeRange) {
+                id
+                lightId
+                time
+                detections {
+                    id
+                    keyframeId
+                    itemId
+                    x
+                    y
+                    w
+                    h
+                    probability
+                    model
+                    item
+                }
+            }
+        }
+    }
+}
+`
+
+export async function getDetectionKeyframes(
+    lightId: number,
+    page?: {
+        current?: number
+        size?: number
+        total?: number
+        searchCount?: boolean
+    },
+    timeRange?: TimeRange
+): Promise<DetectionKeyframe[]> {
+    const response = await postGql<
+        {
+            self: {
+                getLightById: {
+                    detectionKeyframes: DetectionKeyframe[]
+                }
+            }
+        }
+    >(
+        DETECTION_KEYFRAMES_QUERY,
+        {
+            lightId,
+            page,
+            timeRange: timeRange ? {
+                start: formatDateWithTimezone(timeRange.start),
+                end: formatDateWithTimezone(timeRange.end)
+            } : undefined
+        }
+    )
+
+    return response.data?.self?.getLightById?.detectionKeyframes as DetectionKeyframe[]
+}
+
+// 格式化日期为带时区的ISO格式
+function formatDateWithTimezone(date: Date): string {
+    const tzOffset = -date.getTimezoneOffset()
+    const diff = tzOffset >= 0 ? '+' : '-'
+    const pad = (n: number) => `${Math.floor(Math.abs(n))}`.padStart(2, '0')
+    const hours = pad(tzOffset / 60)
+    const minutes = pad(tzOffset % 60)
+    return `${date.toISOString().slice(0, 19)}.000${diff}${hours}:${minutes}`
+}
+
+/**
+ * 获取图片
+ * @param id 图片ID
+ * @param thumb 是否获取缩略图
+ * @returns 图片的Blob数据
+ */
+export async function getImage(id: number, thumb: boolean = false): Promise<Blob> {
+    const response = await api.get(
+        `/images?id=${id}&thumb=${thumb}`,
+        {
+            responseType: 'blob'
+        }
+    )
+    return response.data
 }

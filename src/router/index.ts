@@ -8,6 +8,7 @@ import Light from "../views/Light.vue"
 import Car from "../views/Car.vue"
 import LightContent from "../views/LightContent.vue"
 import LightHistoryData from "../views/LightHistoryData.vue"
+import LightDetection from "../views/LightDetection.vue"
 
 
 const router = createRouter({
@@ -44,6 +45,10 @@ const router = createRouter({
                         {
                             path: "/lightHistoryData",
                             component: LightHistoryData
+                        },
+                        {
+                            path: "/lightDetection",
+                            component: LightDetection
                         }
                     ]
                 },

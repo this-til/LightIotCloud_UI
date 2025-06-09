@@ -14,6 +14,7 @@
         </el-menu-item>
         <el-menu-item index="status" @click="handleSelect('status')">当前状态</el-menu-item>
         <el-menu-item index="history" @click="handleSelect('history')">历史数据</el-menu-item>
+        <el-menu-item index="detection" @click="handleSelect('detection')">检测结果</el-menu-item>
         <el-menu-item index="monitor" @click="handleSelect('monitor')">实时监控</el-menu-item>
         <el-menu-item index="chat" @click="handleSelect('chat')">实时对话</el-menu-item>
         <div class="flex-grow" />
@@ -31,9 +32,9 @@
     </el-header>
 
     <el-main>
-      <RouterView />
+      <RouterView :light="light" />
     </el-main>
-    
+
   </el-container>
 </template>
 
@@ -52,7 +53,11 @@ import { computedAsync } from "@vueuse/core"
 const route = useRoute()
 const router = useRouter()
 
-const light = computedActivateLight()
+const light = ref<Light>({})
+
+onMounted(async () => {
+  light.value = await getLightById(Number(router.currentRoute.value.query.id))
+})
 
 const goBack = () => {
   router.back()
@@ -69,6 +74,12 @@ const handleSelect = (key: string) => {
     case "history":
       router.push({
         path: "/lightHistoryData",
+        query: { id: route.query.id }
+      })
+      break
+    case "detection":
+      router.push({
+        path: "/lightDetection",
         query: { id: route.query.id }
       })
       break
@@ -134,6 +145,7 @@ const handleSelect = (key: string) => {
   padding: 20px;
   background-color: #f5f7fa;
 }
+
 .el-main {
   padding: 0px;
 }
