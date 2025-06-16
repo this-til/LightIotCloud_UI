@@ -40,8 +40,8 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from "vue"
-import { computedActivateLight, getLightById } from "@/util/api"
-import type { Light } from "@/util/api"
+import { computedActivateLight, getLightById } from "@/util/Api"
+import type { Device } from "@/util/Api"
 import { RouterView, useRoute, useRouter } from "vue-router"
 import {
   CircleCheckFilled,
@@ -53,7 +53,7 @@ import { computedAsync } from "@vueuse/core"
 const route = useRoute()
 const router = useRouter()
 
-const light = ref<Light>({})
+const light = ref<Device>({} as Device)
 
 onMounted(async () => {
   light.value = await getLightById(Number(router.currentRoute.value.query.id))
@@ -84,8 +84,10 @@ const handleSelect = (key: string) => {
       })
       break
     case "monitor":
-      // TODO: 实现实时监控页面
-      console.log("实时监控 - 待实现")
+      router.push({
+        path: "/lightMonitor",
+        query: { id: route.query.id }
+      })
       break
     case "chat":
       // TODO: 实现实时对话页面

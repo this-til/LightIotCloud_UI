@@ -33,8 +33,20 @@ export default defineConfig(
                         target: "http://localhost:8080",
                         ws: true,
                         changeOrigin: true,
-                        //secure: false,//开启代理
                         rewrite: (path) => path.replace(/^\/api/, "")
+                    },
+                    "/device": {
+                        target: "http://192.168.117.2:8888",
+                        changeOrigin: true,
+                        secure: false,
+                        rewrite: (path) => path.replace(/^\/device/, ""),
+                        configure: (proxy, options) => {
+                            proxy.on('proxyRes', (proxyRes) => {
+                                proxyRes.headers['Access-Control-Allow-Origin'] = '*'
+                                proxyRes.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, PATCH, OPTIONS'
+                                proxyRes.headers['Access-Control-Allow-Headers'] = 'X-Requested-With, content-type, Authorization'
+                            })
+                        }
                     }
                 }
             }

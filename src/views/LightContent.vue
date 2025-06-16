@@ -165,15 +165,15 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from "vue"
-import { getDefWebSocketClient, subscriptionLightDataReportEventEvent, subscriptionLightStateReportEvent, setLightGear, setAutomaticGear, SUCCESSFUL } from "@/util/api"
-import type {  Light, LightData, LightState, unsubscribe } from "@/util/api"
+import { getDefWebSocketClient, subscriptionLightDataReportEventEvent, subscriptionLightStateReportEvent, setLightGear, setAutomaticGear, SUCCESSFUL } from "@/util/Api"
+import type { Device, LightData, LightState, unsubscribe } from "@/util/Api"
 import { useRoute } from "vue-router"
 import { Monitor, WindPower, Compass, Sunny, Lightning } from "@element-plus/icons-vue"
 import { computedAsync } from "@vueuse/core"
 import { ElNotification } from "element-plus"
 
 const props = defineProps<{
-  light: Light
+  light: Device
 }>()
 
 const route = useRoute()

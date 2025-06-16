@@ -1,7 +1,7 @@
 ﻿import type { Client, FormattedExecutionResult, Sink } from "graphql-ws"
 import { createClient } from "graphql-ws"
 import { WebSocket } from "vite"
-import axios, { ResponseType } from "axios"
+import axios from "axios"
 import type { AxiosInstance, AxiosRequestConfig, AxiosError, RawAxiosRequestHeaders, AxiosHeaders, AxiosResponse, InternalAxiosRequestConfig } from "axios"
 import { ElNotification } from "element-plus"
 import router from "../router"
@@ -20,16 +20,16 @@ export const CAR = "CAR"
 export const LIGHT = "LIGHT"
 
 export enum DeviceType {
-    CAR = CAR,
-    LIGHT = LIGHT,
+    CAR = "CAR",
+    LIGHT = "LIGHT",
 }
 
 export const ONLINE = "ONLINE"
 export const OFFLINE = "OFFLINE"
 
 export enum OnlineState {
-    ONLINE = ONLINE,
-    OFFLINE = OFFLINE,
+    ONLINE = "ONLINE",
+    OFFLINE = "OFFLINE",
 }
 
 export const SUCCESSFUL = "SUCCESSFUL"
@@ -37,17 +37,15 @@ export const FAIL = "FAIL"
 export const ERROR = "ERROR"
 
 export enum ResultType {
-    SUCCESSFUL = SUCCESSFUL,
-    FAIL = FAIL,
-    ERROR = ERROR,
+    SUCCESSFUL = "SUCCESSFUL",
+    FAIL = "FAIL",
+    ERROR = "ERROR",
 }
 
 
 export interface DeviceOnlineStateSwitchEvent {
     onlineState: OnlineState
-    deviceType: DeviceType
-    deviceId: number
-    deviceName: string
+    device: Device
 
     [key: string]: unknown;
 }
@@ -58,16 +56,9 @@ export interface Device {
     name: string
     createdAt: Date
     updatedAt: Date
+    deviceType: DeviceType
 
     online: Boolean
-}
-
-export interface Light extends Device {
-
-}
-
-export interface Car extends Device {
-
 }
 
 export interface LightData {
@@ -130,7 +121,7 @@ export interface Detection {
 
 export interface DetectionKeyframe {
     id: number
-    lightId: number
+    deviceId: number
     time: Date
     detections: Detection[]
 }
@@ -140,48 +131,48 @@ const TOKEN_KEY = "auth_token"
 const state = {
     token: localStorage.getItem(TOKEN_KEY),
     client: null as Client | null,
-    activateLight: null as Light | null,
-    activateCar: null as Car | null
+    activateLight: null as Device | null,
+    activateCar: null as Device | null
 }
 
-export const computedActivateLight = () => computedAsync<Light>(async () => {
+export const computedActivateLight = () => computedAsync<Device | null>(async () => {
     let id = router.currentRoute.value.query.id
     if (!id) {
         return null
     }
-    id = Number(id)
-    if (state.activateLight && state.activateLight.id === id) {
+    const numId = Number(id)
+    if (state.activateLight && state.activateLight.id === numId) {
         return state.activateLight
     }
-    state.activateLight = await getLightById(id)
+    state.activateLight = await getLightById(numId)
     return state.activateLight
-}, {})
+}, null)
 
 
-export const computedActivateCar = () => computedAsync<Car>(async () => {
+export const computedActivateCar = () => computedAsync<Device | null>(async () => {
     let id = router.currentRoute.value.query.id
     if (!id) {
         return null
     }
-    id = Number(id)
-    if (state.activateCar && state.activateCar.id === id) {
+    const numId = Number(id)
+    if (state.activateCar && state.activateCar.id === numId) {
         return state.activateCar
     }
+    state.activateCar = await getCarById(numId)
     return state.activateCar
-}, {})
+}, null)
 
 // 创建客户端
 export function createDefWebSocketClient(): Client {
-
     if (state.client) {
         state.client.terminate()
-        state.client = undefined
+        state.client = null
     }
 
     let activeSocket
-    let timedOut
+    let timedOut: ReturnType<typeof setTimeout> | undefined
 
-    activeSocket = state.client = createClient({
+    const client = createClient({
         url: "/api/graphql",
         connectionParams: {
             Authorization: getToken(),
@@ -209,7 +200,9 @@ export function createDefWebSocketClient(): Client {
             ping: (received) => {
                 if (!received) {
                      timedOut = setTimeout(() => {
-                        state.client.terminate()
+                        if (state.client) {
+                            state.client.terminate()
+                        }
                     }, 5_000)
                 }
             },
@@ -229,7 +222,9 @@ export function createDefWebSocketClient(): Client {
             connected: () => console.debug("[GraphQL-Connected]")
         }
     })
-    return state.client
+    
+    state.client = client
+    return client
 }
 
 export const getDefWebSocketClient = () => {
@@ -284,9 +279,15 @@ export const deviceOnlineStateSwitchEventGql = `
     subscription {
         deviceOnlineStateSwitchEvent {
             onlineState
-            deviceType
-            deviceId
-            deviceName
+            device {
+                id
+                userId
+                name
+                createdAt
+                updatedAt
+                deviceType
+                online
+            }
         }
     }
     `
@@ -349,6 +350,47 @@ export const lightDataReportEventGql = `
         }
     }
 `
+
+export const lightDetectionReportEventGql = `
+    subscription lightDetectionReportEvent($lightId: Int!) {
+        lightDetectionReportEvent(lightId: $lightId) {
+            id
+            deviceId
+            time
+            detections {
+                id
+                keyframeId
+                itemId
+                x
+                y
+                w
+                h
+                probability
+                model
+                item
+            }
+        }
+    }
+`
+
+export function subscriptionLightDetectionReportEvent(
+        client: Client,
+        lightId: number,
+        sink: Sink<DetectionKeyframe>
+): unsubscribe {
+    return client.subscribe(
+            {
+                query: lightDetectionReportEventGql,
+                variables: {
+                    lightId
+                }
+            },
+            mapSink<FormattedExecutionResult<Record<string, unknown>, unknown>, DetectionKeyframe>(
+                    sink,
+                    res => res.data?.lightDetectionReportEvent as DetectionKeyframe
+            )
+    )
+}
 
 export function subscriptionLightDataReportEventEvent(
         client: Client,
@@ -550,7 +592,7 @@ export interface ErrorExtensions {
     [key: string]: unknown;
 }
 
-export interface GraphqlResponse<D> {
+export interface GraphqlResponse<D = any> {
     data?: D
     errors?: Record<string, unknown>[]
 
@@ -624,7 +666,7 @@ export async function jwtEffective(jwt: string): Promise<boolean> {
 export const LIGHT_QUERY = `
 query getLight($id: ID!) {
     self {
-        getLightById(id: $id) {
+        getDeviceById(id: $id, deviceType: LIGHT) {
             id
             userId
             name
@@ -636,107 +678,101 @@ query getLight($id: ID!) {
 }
 `
 
-export async function getLightById(id: number): Promise<Light> {
+export async function getLightById(id: number): Promise<Device> {
     const graphqlResponse = await postGql<
             {
                 self: {
-                    getLightById: Light
+                    getDeviceById: Device
                 }
             }
     >(LIGHT_QUERY, { id })
-    return graphqlResponse.data?.self?.getLightById as Light
+    return graphqlResponse.data?.self?.getDeviceById as Device
 }
 
-export const CART_QUERY = `
-query getCarById($id: ID!){
+export const CAR_QUERY = `
+query getCarById($id: ID!) {
     self {
-        getCarById(id: $id) {
+        getDeviceById(id: $id, deviceType: CAR) {
             id
             userId
             name
             createdAt
             updatedAt
             online
+            asCar {
+                carState {
+                    TODO
+                }
+            }
         }
     }
 }
 `
 
-export async function getCarById(id: number): Promise<Car> {
+export async function getCarById(id: number): Promise<Device> {
     const graphqlResponse = await postGql<
             {
                 self: {
-                    getCarById: Car
+                    getDeviceById: Device
                 }
             }
-    >(CART_QUERY, { id })
-    return graphqlResponse.data?.self?.getCarById as Car
+    >(CAR_QUERY, { id })
+    return graphqlResponse.data?.self?.getDeviceById as Device
 }
 
-export const LIGHTS_QUERY = `
-query {
+export const DEVICES_QUERY = `
+query getDevices($deviceType: DeviceType) {
   self {
-    lights {
+    devices(deviceType: $deviceType) {
       id
       name
       online
       createdAt
       updatedAt
+      deviceType
     }
   }
 }
 `
 
-export async function getLightList(): Promise<Light[]> {
+export async function getLightList(): Promise<Device[]> {
     const graphqlResponse = await postGql<
             {
                 self: {
-                    lights: Light[]
+                    devices: Device[]
                 }
             }
-    >(LIGHTS_QUERY)
-    return graphqlResponse.data?.self?.lights as Light[]
+    >(DEVICES_QUERY, { deviceType: DeviceType.LIGHT })
+    return graphqlResponse.data?.self?.devices as Device[]
 }
 
-export const CARS_QUERY = `
-query {
-  self {
-    cars {
-      id
-      name
-      online
-      createdAt
-      updatedAt
-    }
-  }
-}
-`
-
-export async function getCarList(): Promise<Car[]> {
+export async function getCarList(): Promise<Device[]> {
     const graphqlResponse = await postGql<
             {
                 self: {
-                    cars: Car[]
+                    devices: Device[]
                 }
             }
-    >(CARS_QUERY)
-    return graphqlResponse.data?.self?.cars as Car[]
+    >(DEVICES_QUERY, { deviceType: DeviceType.CAR })
+    return graphqlResponse.data?.self?.devices as Device[]
 }
 
 
 export const LIGHT_DATA_QUERY = `
    query getLightHistory($lightId: ID!, $timeRange: TimeRange) {
-    self{
-      getLightById(id: $lightId) {
-        datas(timeRange: $timeRange) {
-          time
-          humidity
-          temperature
-          pm10
-          pm2_5
-          illumination
-          windSpeed
-          windDirection
+    self {
+      getDeviceById(id: $lightId, deviceType: LIGHT) {
+        asLight {
+          datas(timeRange: $timeRange) {
+            time
+            humidity
+            temperature
+            pm10
+            pm2_5
+            illumination
+            windSpeed
+            windDirection
+          }
         }
       }
     }
@@ -756,8 +792,10 @@ export async function getLightHistoryData(
     const response = await postGql<
             {
                 self: {
-                    getLightById: {
-                        datas: LightData[]
+                    getDeviceById: {
+                        asLight: {
+                            datas: LightData[]
+                        }
                     }
                 }
             }
@@ -769,16 +807,17 @@ export async function getLightHistoryData(
             }
     )
 
-    return response.data?.self?.getLightById?.datas as LightData[]
-
+    return response.data?.self?.getDeviceById?.asLight?.datas as LightData[]
 }
 
 export const SET_LIGHT_GEAR_MUTATION = `
 mutation setGear($lightId: ID!, $value: Int!) {
-    self{
-        getLightById(id: $lightId) {
-            setGear(value: $value) {
-                resultType
+    self {
+        getDeviceById(id: $lightId, deviceType: LIGHT) {
+            asLight {
+                setGear(value: $value) {
+                    resultType
+                }
             }
         }
     }
@@ -793,9 +832,11 @@ export async function setLightGear(
     const response = await postGql<
             {
                 self: {
-                    getLightById: {
-                        setGear: {
-                            resultType: ResultType
+                    getDeviceById: {
+                        asLight: {
+                            setGear: {
+                                resultType: ResultType
+                            }
                         }
                     }
                 }
@@ -808,16 +849,17 @@ export async function setLightGear(
             }
     )
 
-    return response?.data?.self?.getLightById?.setGear?.resultType as ResultType
-
+    return response?.data?.self?.getDeviceById?.asLight?.setGear?.resultType as ResultType
 }
 
 export const SET_AUTOMATIC_GEAR_MUTATION = `
 mutation setAutomaticGear($lightId: ID!, $value: Boolean!) {
-    self{
-        getLightById(id: $lightId) {
-            setAutomaticGear(value: $value) {
-                resultType
+    self {
+        getDeviceById(id: $lightId, deviceType: LIGHT) {
+            asLight {
+                setAutomaticGear(value: $value) {
+                    resultType
+                }
             }
         }
     }
@@ -832,9 +874,11 @@ export async function setAutomaticGear(
     const response = await postGql<
             {
                 self: {
-                    getLightById: {
-                        setAutomaticGear: {
-                            resultType: ResultType
+                    getDeviceById: {
+                        asLight: {
+                            setAutomaticGear: {
+                                resultType: ResultType
+                            }
                         }
                     }
                 }
@@ -847,8 +891,7 @@ export async function setAutomaticGear(
             }
     )
 
-    return response?.data?.self?.getLightById?.setAutomaticGear?.resultType as ResultType
-
+    return response?.data?.self?.getDeviceById?.asLight?.setAutomaticGear?.resultType as ResultType
 }
 
 export const USER_MODELS_QUERY = `
@@ -878,28 +921,70 @@ export async function getUserModels(): Promise<DetectionModel[]> {
 export const DETECTION_KEYFRAMES_QUERY = `
 query getDetectionKeyframes($lightId: ID!, $page: Page, $timeRange: TimeRange) {
     self {
-        getLightById(id: $lightId) {
-            detectionKeyframes(page: $page, timeRange: $timeRange) {
-                id
-                lightId
-                time
-                detections {
+        getDeviceById(id: $lightId, deviceType: LIGHT) {
+            asLight {
+                detectionKeyframes(page: $page, timeRange: $timeRange) {
                     id
-                    keyframeId
-                    itemId
-                    x
-                    y
-                    w
-                    h
-                    probability
-                    model
-                    item
+                    deviceId
+                    time
+                    detections {
+                        id
+                        keyframeId
+                        itemId
+                        x
+                        y
+                        w
+                        h
+                        probability
+                        model
+                        item
+                    }
                 }
             }
         }
     }
 }
 `
+
+export const DETECTION_KEYFRAME_COUNT_QUERY = `
+query getDetectionKeyframeCount($lightId: ID!, $timeRange: TimeRange) {
+    self {
+        getDeviceById(id: $lightId, deviceType: LIGHT) {
+            asLight {
+                detectionKeyframeCount(timeRange: $timeRange)
+            }
+        }
+    }
+}
+`
+
+export async function getDetectionKeyframeCount(
+    lightId: number,
+    timeRange?: TimeRange
+): Promise<number> {
+    const response = await postGql<
+        {
+            self: {
+                getDeviceById: {
+                    asLight: {
+                        detectionKeyframeCount: number
+                    }
+                }
+            }
+        }
+    >(
+        DETECTION_KEYFRAME_COUNT_QUERY,
+        {
+            lightId,
+            timeRange: timeRange ? {
+                start: formatDateWithTimezone(timeRange.start),
+                end: formatDateWithTimezone(timeRange.end)
+            } : undefined
+        }
+    )
+
+    return response.data?.self?.getDeviceById?.asLight?.detectionKeyframeCount || 0
+}
 
 export async function getDetectionKeyframes(
     lightId: number,
@@ -914,8 +999,10 @@ export async function getDetectionKeyframes(
     const response = await postGql<
         {
             self: {
-                getLightById: {
-                    detectionKeyframes: DetectionKeyframe[]
+                getDeviceById: {
+                    asLight: {
+                        detectionKeyframes: DetectionKeyframe[]
+                    }
                 }
             }
         }
@@ -931,7 +1018,7 @@ export async function getDetectionKeyframes(
         }
     )
 
-    return response.data?.self?.getLightById?.detectionKeyframes as DetectionKeyframe[]
+    return response.data?.self?.getDeviceById?.asLight?.detectionKeyframes as DetectionKeyframe[]
 }
 
 // 格式化日期为带时区的ISO格式
@@ -958,4 +1045,276 @@ export async function getImage(id: number, thumb: boolean = false): Promise<Blob
         }
     )
     return response.data
+}
+
+export const DEVICE_SELF_QUERY = `
+query {
+  deviceSelf {
+    id
+    userId
+    name
+    createdAt
+    updatedAt
+    deviceType
+    online
+  }
+}
+`
+
+export async function getDeviceSelf(): Promise<Device | null> {
+    const graphqlResponse = await postGql<
+            {
+                deviceSelf: Device
+            }
+    >(DEVICE_SELF_QUERY)
+    return graphqlResponse.data?.deviceSelf || null
+}
+
+export const DEVICE_LIGHT_STATE_QUERY = `
+query getDeviceLightState($deviceId: ID!) {
+  self {
+    getDeviceById(id: $deviceId, deviceType: LIGHT) {
+      asLight {
+        lightState {
+          enableWirelessCharging
+          wirelessChargingPower
+        }
+      }
+    }
+  }
+}
+`
+
+export async function getDeviceLightState(deviceId: number): Promise<LightState | null> {
+    const response = await postGql<{
+        self: {
+            getDeviceById: {
+                asLight: {
+                    lightState: LightState
+                }
+            }
+        }
+    }>(DEVICE_LIGHT_STATE_QUERY, { deviceId })
+    
+    return response.data?.self?.getDeviceById?.asLight?.lightState || null
+}
+
+export const DEVICE_CAR_STATE_QUERY = `
+query getDeviceCarState($deviceId: ID!) {
+  self {
+    getDeviceById(id: $deviceId, deviceType: CAR) {
+      asCar {
+        carState {
+          TODO
+        }
+      }
+    }
+  }
+}
+`
+
+export async function getDeviceCarState(deviceId: number): Promise<CarState | null> {
+    const response = await postGql<{
+        self: {
+            getDeviceById: {
+                asCar: {
+                    carState: CarState
+                }
+            }
+        }
+    }>(DEVICE_CAR_STATE_QUERY, { deviceId })
+    
+    return response.data?.self?.getDeviceById?.asCar?.carState || null
+}
+
+export const OPERATION_CAR_MUTATION = `
+mutation operationCar($carId: ID!, $operationCarInput: OperationCarInput!) {
+    self {
+        getDeviceById(id: $carId, deviceType: CAR) {
+            asCar {
+                operationCar(operationCarInput: $operationCarInput) {
+                    resultType
+                    message
+                }
+            }
+        }
+    }
+}
+`
+
+export interface Result {
+    resultType: ResultType
+    message?: string
+}
+
+export async function operationCar(
+    carId: number, 
+    operationInput: {
+        translationAdvance?: boolean
+        translationLeft?: boolean
+        translationRetreat?: boolean
+        translationRight?: boolean
+        angularLeft?: boolean
+        angularRight?: boolean
+        stop?: boolean
+    }
+): Promise<Result> {
+    const response = await postGql<{
+        self: {
+            getDeviceById: {
+                asCar: {
+                    operationCar: Result
+                }
+            }
+        }
+    }>(OPERATION_CAR_MUTATION, {
+        carId,
+        operationCarInput: operationInput
+    })
+    
+    return response.data?.self?.getDeviceById?.asCar?.operationCar as Result
+}
+
+export const SET_SUSTAINED_DETECTION_MUTATION = `
+mutation setSustainedDetection($lightId: ID!, $modelName: String) {
+    self {
+        getDeviceById(id: $lightId, deviceType: LIGHT) {
+            asLight {
+                setSustainedDetection(modelName: $modelName) {
+                    resultType
+                }
+            }
+        }
+    }
+}
+`
+
+export async function setSustainedDetection(
+    lightId: ID,
+    modelName: string
+): Promise<ResultType> {
+    const response = await postGql<
+        {
+            self: {
+                getDeviceById: {
+                    asLight: {
+                        setSustainedDetection: {
+                            resultType: ResultType
+                        }
+                    }
+                }
+            }
+        }
+    >(
+        SET_SUSTAINED_DETECTION_MUTATION,
+        { lightId, modelName }
+    )
+
+    return response?.data?.self?.getDeviceById?.asLight?.setSustainedDetection?.resultType as ResultType
+}
+
+export const CLOSE_SUSTAINED_DETECTION_MUTATION = `
+mutation closeSustainedDetection($lightId: ID!) {
+    self {
+        getDeviceById(id: $lightId, deviceType: LIGHT) {
+            asLight {
+                closeSustainedDetection {
+                    resultType
+                }
+            }
+        }
+    }
+}
+`
+
+export async function closeSustainedDetection(
+    lightId: ID
+): Promise<ResultType> {
+    const response = await postGql<
+        {
+            self: {
+                getDeviceById: {
+                    asLight: {
+                        closeSustainedDetection: {
+                            resultType: ResultType
+                        }
+                    }
+                }
+            }
+        }
+    >(
+        CLOSE_SUSTAINED_DETECTION_MUTATION,
+        { lightId }
+    )
+
+    return response?.data?.self?.getDeviceById?.asLight?.closeSustainedDetection?.resultType as ResultType
+}
+
+export const COMMAND_DOWN_MUTATION = `
+mutation commandDown($deviceId: ID!, $key: String!, $value: String!) {
+    self {
+        getDeviceById(id: $deviceId) {
+            commandDown(key: $key, value: $value) {
+                resultType
+            }
+        }
+    }
+}
+`
+
+export async function commandDown(
+    deviceId: ID,
+    key: string,
+    value: string
+): Promise<ResultType> {
+    const response = await postGql<
+        {
+            self: {
+                getDeviceById: {
+                    commandDown: {
+                        resultType: ResultType
+                    }
+                }
+            }
+        }
+    >(
+        COMMAND_DOWN_MUTATION,
+        { deviceId, key, value }
+    )
+
+    return response?.data?.self?.getDeviceById?.commandDown?.resultType as ResultType
+}
+
+export const LIGHT_SUSTAINED_DETECTION_REPORT_EVENT_GQL = `
+subscription lightSustainedDetectionReportEvent($lightId: Int!) {
+    lightSustainedDetectionReportEvent(lightId: $lightId) {
+        id
+        keyframeId
+        itemId
+        x
+        y
+        w
+        h
+        probability
+        model
+        item
+    }
+}
+`
+
+export function subscriptionLightSustainedDetectionReportEvent(
+    client: Client,
+    lightId: number,
+    sink: Sink<Detection[]>
+): unsubscribe {
+    return client.subscribe(
+        {
+            query: LIGHT_SUSTAINED_DETECTION_REPORT_EVENT_GQL,
+            variables: { lightId }
+        },
+        mapSink<FormattedExecutionResult<Record<string, unknown>, unknown>, Detection[]>(
+            sink,
+            res => res.data?.lightSustainedDetectionReportEvent as Detection[]
+        )
+    )
 }

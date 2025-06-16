@@ -112,7 +112,7 @@ import {
   View,
   Search
 } from "@element-plus/icons-vue"
-import type { Device } from "@/util/api.js"
+import type { Device } from "@/util/Api.js"
 
 const props = defineProps<Props>()
 

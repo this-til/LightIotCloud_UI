@@ -7,13 +7,13 @@
 
 <script setup lang="ts">
 
-import { getLightList } from "@/util/api"
-import type { Light, Device } from "@/util/api"
+import { getLightList } from "@/util/Api"
+import type { Device } from "@/util/Api"
 import { onMounted, ref } from "vue"
 import DeviceList from "../components/DeviceList.vue"
 import router from "@/router"
 
-const lightList = ref<Light[]>([])
+const lightList = ref<Device[]>([])
 
 onMounted(
   async () => {

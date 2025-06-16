@@ -8,12 +8,12 @@
 
 <script setup lang="ts">
 
-import { Car, Device, getCarList } from "@/util/api"
+import { Device, getCarList } from "@/util/Api"
 import { onMounted, ref } from "vue"
 import DeviceList from "../components/DeviceList.vue"
 import router from "@/router"
 
-const carList = ref<Car[]>([])
+const carList = ref<Device[]>([])
 
 onMounted(
   async () => {

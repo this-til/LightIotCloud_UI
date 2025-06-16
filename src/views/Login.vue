@@ -3,7 +3,7 @@ import { ref, onMounted } from 'vue'
 import RetrievePassword from '../components/RetrievePassword.vue'
 import Registered from '../components/Registered.vue'
 import { useRouter } from 'vue-router'
-import { login, setToken } from '@/util/api.ts'
+import { login, setToken } from '@/util/Api.ts'
 //初始化变量
 const username = ref('')
 const password = ref('')

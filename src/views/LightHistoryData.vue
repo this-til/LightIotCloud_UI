@@ -90,11 +90,11 @@ import { ref, onMounted, onUnmounted } from "vue"
 import { useRoute } from "vue-router"
 import * as echarts from "echarts"
 import type { EChartsOption } from "echarts"
-import { getLightHistoryData } from "@/util/api"
-import type { LightData, TimeRange, Light } from "@/util/api"
+import { getLightHistoryData } from "@/util/Api"
+import type { LightData, TimeRange, Device } from "@/util/Api"
 
 const props = defineProps<{
-  light: Light
+  light: Device
 }>()
 
 const route = useRoute()

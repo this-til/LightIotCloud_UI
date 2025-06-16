@@ -1,20 +1,26 @@
 <template>
   <div class="detection-container">
     <div class="time-range-selector">
-      <el-date-picker
-        v-model="timeRange"
-        type="datetimerange"
-        range-separator="至"
-        start-placeholder="开始时间"
-        end-placeholder="结束时间"
-        :shortcuts="timeShortcuts"
-        @change="handleTimeRangeChange"
-      />
-      <el-select v-model="pageSize" class="size-selector" @change="handleTimeRangeChange">
-        <el-option label="10条" :value="10" />
-        <el-option label="20条" :value="20" />
-        <el-option label="30条" :value="30" />
-      </el-select>
+      <div class="left-controls">
+        <el-switch
+          v-model="realtimeEnabled"
+          active-text="实时更新"
+          @change="handleRealtimeToggle"
+        />
+      </div>
+      <div class="right-controls">
+        <template v-if="!realtimeEnabled">
+          <el-date-picker
+            v-model="timeRange"
+            type="datetimerange"
+            range-separator="至"
+            start-placeholder="开始时间"
+            end-placeholder="结束时间"
+            :shortcuts="timeShortcuts"
+            @change="handleTimeRangeChange"
+          />
+        </template>
+      </div>
     </div>
 
     <div v-loading="loading" class="detection-grid">
@@ -24,99 +30,63 @@
             <span class="detection-time">{{ new Date(keyframe.time).toLocaleString() }}</span>
           </div>
           <div class="detection-content">
-            <div class="image-container">
-              <img 
-                :src="imageUrls[keyframe.id] ? (originalMode[keyframe.id] ? imageUrls[keyframe.id].original : imageUrls[keyframe.id].thumbnail) : '/placeholder.png'"
-                :alt="'Detection at ' + keyframe.time"
-                class="detection-image"
-                @click="handlePreview(keyframe)"
-              />
-              <div v-for="detection in keyframe.detections" :key="detection.id" 
-                   class="detection-box"
-                   :style="{
-                     left: (detection.x * 100) + '%',
-                     top: (detection.y * 100) + '%',
-                     width: (detection.w * 100) + '%',
-                     height: (detection.h * 100) + '%'
-                   }">
-                <div class="detection-label">
-                  {{ detection.item }} ({{ (detection.probability * 100).toFixed(1) }}%)
+
+            <div class="detection-image" @click="showOriginalImage(keyframe.id)">
+              <div class="image-container">
+                <img
+                  v-if="!imageLoadError"
+                  :src="imageUrls[keyframe.id]"
+                  alt="Detection"
+                  ref="imgRef"
+                  @load="handleImageLoad(keyframe.id, $event)"
+                  @error="handleImageError"
+                />
+                <canvas 
+                  :id="`canvas-${keyframe.id}`" 
+                  class="bounding-box-canvas"
+                ></canvas>
+                <div v-if="imageLoadError" class="image-error-message">
+                  <el-icon>
+                    <Picture />
+                  </el-icon>
+                  <span>图片加载失败</span>
                 </div>
               </div>
             </div>
-            <div class="detection-info">
-              <div v-for="detection in keyframe.detections" :key="detection.id" class="detection-item">
-                <el-tag size="small" :type="getTagType(detection.probability)">
-                  {{ detection.item }}
-                </el-tag>
-                <span class="probability">{{ (detection.probability * 100).toFixed(1) }}%</span>
-              </div>
-            </div>
+
           </div>
         </el-card>
       </template>
-      <el-empty v-else description="暂无检测数据" />
+      <el-empty v-else description="暂无检测数据" class="no-data-message" />
     </div>
 
-    <!-- Custom Preview Dialog -->
-    <el-dialog
-      v-model="previewVisible"
-      :show-close="true"
-      :close-on-click-modal="true"
-      :close-on-press-escape="true"
-      class="preview-dialog"
-      @close="handleClosePreview"
-    >
-      <div v-if="currentPreviewKeyframe" class="preview-container">
-        <div class="preview-image-wrapper">
-          <img 
-            :src="imageUrls[currentPreviewKeyframe.id]?.original || '/placeholder.png'"
-            :alt="'Detection at ' + currentPreviewKeyframe.time"
-            class="preview-image"
-          />
-          <div v-for="detection in currentPreviewKeyframe.detections" 
-               :key="detection.id" 
-               class="preview-detection-box"
-               :style="{
-                 left: (detection.x * 100) + '%',
-                 top: (detection.y * 100) + '%',
-                 width: (detection.w * 100) + '%',
-                 height: (detection.h * 100) + '%'
-               }">
-            <div class="preview-detection-label">
-              {{ detection.item }} ({{ (detection.probability * 100).toFixed(1) }}%)
-            </div>
-          </div>
-        </div>
-        <div class="preview-info">
-          <div class="preview-time">
-            {{ new Date(currentPreviewKeyframe.time).toLocaleString() }}
-          </div>
-          <div class="preview-detections">
-            <div v-for="detection in currentPreviewKeyframe.detections" 
-                 :key="detection.id" 
-                 class="preview-detection-item">
-              <el-tag size="small" :type="getTagType(detection.probability)">
-                {{ detection.item }}
-              </el-tag>
-              <span class="probability">{{ (detection.probability * 100).toFixed(1) }}%</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </el-dialog>
+    <div v-if="!realtimeEnabled" class="pagination">
+      <el-pagination
+        v-model:current-page="currentPage"
+        v-model:page-size="pageSize"
+        :page-sizes="[10, 20, 30]"
+        :total="totalCount"
+        layout="total, sizes, prev, pager, next, jumper"
+        @size-change="handleSizeChange"
+        @current-change="handleCurrentChange"
+      />
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from "vue"
+import { ref, onMounted, onUnmounted, computed, watch } from "vue"
 import { useRoute } from "vue-router"
-import { getDetectionKeyframes, getImage } from "@/util/api"
-import type { DetectionKeyframe, TimeRange, Light } from "@/util/api"
+import { getDetectionKeyframes, subscriptionLightDetectionReportEvent, getDefWebSocketClient, getDetectionKeyframeCount, getImage } from "@/util/Api"
+import type { DetectionKeyframe, TimeRange, Device } from "@/util/Api"
 import { ElMessage } from "element-plus"
+import { Picture } from "@element-plus/icons-vue"
+import { getColorPreset } from "@/util/ColorPreset"
+import { nextTick } from "vue"
+import { drawBoundingBoxes } from '@/util/DrawBoundingBoxes'
 
 const props = defineProps<{
-  light: Light
+  light: Device
 }>()
 
 const route = useRoute()
@@ -125,10 +95,10 @@ const keyframes = ref<DetectionKeyframe[]>([])
 const timeRange = ref<[Date, Date] | null>(null)
 const loading = ref(false)
 const pageSize = ref(10)
-const imageUrls = ref<Record<number, { thumbnail: string, original: string }>>({})
-const originalMode = ref<Record<number, boolean>>({})
-const previewVisible = ref(false)
-const currentPreviewKeyframe = ref<DetectionKeyframe | null>(null)
+const realtimeEnabled = ref(true)
+const currentPage = ref(1)
+const totalCount = ref(0)
+let unsubscribe: (() => void) | null = null
 
 const timeShortcuts = [
   {
@@ -160,35 +130,17 @@ const timeShortcuts = [
   }
 ]
 
+const imageCache = new Map<number, string>()
+const imageUrls = ref<Record<number, string>>({})
+const imageLoadError = ref(false)
+
+// 存储图片引用
+const imgRefs = ref<Record<number, HTMLImageElement | null>>({})
+
 const getTagType = (probability: number) => {
-  if (probability >= 0.8) return 'success'
-  if (probability >= 0.5) return 'warning'
-  return 'info'
-}
-
-const loadImage = async (keyframeId: number) => {
-  try {
-    // Load thumbnail first
-    const thumbnailBlob = await getImage(keyframeId, true)
-    const thumbnailUrl = URL.createObjectURL(thumbnailBlob)
-    
-    // Load original image
-    const originalBlob = await getImage(keyframeId, false)
-    const originalUrl = URL.createObjectURL(originalBlob)
-    
-    imageUrls.value[keyframeId] = {
-      thumbnail: thumbnailUrl,
-      original: originalUrl
-    }
-    originalMode.value[keyframeId] = false
-  } catch (error) {
-    console.error("Failed to load image:", error)
-    ElMessage.error("加载图片失败")
-  }
-}
-
-const toggleImageMode = (keyframeId: number) => {
-  originalMode.value[keyframeId] = !originalMode.value[keyframeId]
+  if (probability >= 0.8) return "success"
+  if (probability >= 0.5) return "warning"
+  return "info"
 }
 
 const handleTimeRangeChange = async () => {
@@ -201,35 +153,227 @@ const handleTimeRangeChange = async () => {
       end: new Date(timeRange.value[1].getTime() - timeRange.value[1].getTimezoneOffset() * 60000)
     }
 
+    // 获取总帧数
+    totalCount.value = await getDetectionKeyframeCount(lightId, timeRangeParam)
+
+    // 获取分页数据
     const data = await getDetectionKeyframes(lightId, {
-      current: 1,
-      size: pageSize.value
+      current: currentPage.value,
+      size: pageSize.value,
+      total: totalCount.value
     }, timeRangeParam)
-    
-    // Sort keyframes by time in descending order (newest first)
-    keyframes.value = data.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
-    
-    // Load images for each keyframe
-    for (const keyframe of keyframes.value) {
-      await loadImage(keyframe.id)
+
+    if (!data || data.length === 0) {
+      keyframes.value = []
+      return
     }
+
+    // 按时间降序排序
+    keyframes.value = data.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
   } catch (error) {
     console.error("Failed to fetch detection data:", error)
     ElMessage.error("获取检测数据失败")
+    keyframes.value = []
   } finally {
     loading.value = false
   }
 }
 
-const handlePreview = (keyframe: DetectionKeyframe) => {
-  currentPreviewKeyframe.value = keyframe
-  previewVisible.value = true
+const handleRealtimeToggle = (value: boolean) => {
+  if (value) {
+    startRealtimeSubscription()
+  } else {
+    stopRealtimeSubscription()
+  }
 }
 
-const handleClosePreview = () => {
-  previewVisible.value = false
-  currentPreviewKeyframe.value = null
+const startRealtimeSubscription = () => {
+  const client = getDefWebSocketClient()
+  if (!client) {
+    ElMessage.error("WebSocket连接失败")
+    realtimeEnabled.value = false
+    return
+  }
+
+  unsubscribe = subscriptionLightDetectionReportEvent(
+    client,
+    lightId,
+    {
+      next: async (keyframe: DetectionKeyframe) => {
+        // 将新数据添加到列表开头
+        keyframes.value.unshift(keyframe)
+
+        // 如果超过页面大小，移除最后一个
+        if (keyframes.value.length > pageSize.value) {
+          keyframes.value.pop()
+        }
+
+        // 更新总数
+        totalCount.value++
+      },
+      error: (error) => {
+        console.error("Detection subscription error:", error)
+        ElMessage.error("实时更新连接错误")
+        realtimeEnabled.value = false
+      },
+      complete: () => {
+        console.log("Detection subscription completed")
+        realtimeEnabled.value = false
+      }
+    }
+  )
 }
+
+const stopRealtimeSubscription = () => {
+  if (unsubscribe) {
+    unsubscribe()
+    unsubscribe = null
+  }
+}
+
+const handleSizeChange = async (val: number) => {
+  pageSize.value = val
+  currentPage.value = 1
+  if (!realtimeEnabled.value) {
+    await handleTimeRangeChange()
+  }
+}
+
+const handleCurrentChange = async (val: number) => {
+  currentPage.value = val
+  if (!realtimeEnabled.value) {
+    await handleTimeRangeChange()
+  }
+}
+
+const getImageUrl = async (keyframeId: number) => {
+  if (imageCache.has(keyframeId)) {
+    imageUrls.value[keyframeId] = imageCache.get(keyframeId)!
+    return
+  }
+
+  try {
+    const blob = await getImage(keyframeId, true)
+    const url = URL.createObjectURL(blob)
+    imageCache.set(keyframeId, url)
+    imageUrls.value[keyframeId] = url
+    imageLoadError.value = false
+  } catch (error) {
+    console.error("Failed to load image:", error)
+    imageLoadError.value = true
+  }
+}
+
+const handleImageError = () => {
+  imageLoadError.value = true
+}
+
+const showOriginalImage = async (keyframeId: number) => {
+  try {
+    const blob = await getImage(keyframeId, false)
+    const url = URL.createObjectURL(blob)
+
+    // 创建图片预览元素
+    const img = document.createElement("img")
+    img.src = url
+    img.style.maxWidth = "90vw"
+    img.style.maxHeight = "90vh"
+    img.style.objectFit = "contain"
+
+    // 创建遮罩层
+    const overlay = document.createElement("div")
+    overlay.style.position = "fixed"
+    overlay.style.top = "0"
+    overlay.style.left = "0"
+    overlay.style.width = "100vw"
+    overlay.style.height = "100vh"
+    overlay.style.backgroundColor = "rgba(0, 0, 0, 0.8)"
+    overlay.style.display = "flex"
+    overlay.style.justifyContent = "center"
+    overlay.style.alignItems = "center"
+    overlay.style.zIndex = "9999"
+    overlay.style.cursor = "pointer"
+
+    // 点击关闭预览
+    overlay.onclick = () => {
+      document.body.removeChild(overlay)
+      URL.revokeObjectURL(url)
+    }
+
+    overlay.appendChild(img)
+    document.body.appendChild(overlay)
+  } catch (error) {
+    console.error("Failed to load original image:", error)
+    ElMessage.error("加载原图失败")
+  }
+}
+
+// 修改函数名避免冲突
+const drawBoundingBoxesForFrame = (keyframeId: number) => {
+  const imgElement = imgRefs.value[keyframeId]
+  if (!imgElement) return
+
+  const canvas = document.getElementById(`canvas-${keyframeId}`) as HTMLCanvasElement
+  if (!canvas) return
+  
+  // 设置canvas尺寸与图片显示尺寸一致
+  const container = imgElement.parentElement
+  if (!container) return
+  
+  canvas.width = container.clientWidth
+  canvas.height = container.clientHeight
+  
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return
+  
+  // 获取当前关键帧
+  const keyframe = keyframes.value.find(k => k.id === keyframeId)
+  if (!keyframe) return
+  
+  // 计算图片在容器中的实际显示尺寸
+  const imgAspect = 512 / 288 // 使用已知图片尺寸
+  const containerAspect = container.clientWidth / container.clientHeight
+  
+  let displayWidth, displayHeight, offsetX, offsetY
+  
+  if (imgAspect > containerAspect) {
+    // 宽度撑满容器
+    displayWidth = container.clientWidth
+    displayHeight = container.clientWidth / imgAspect
+    offsetX = 0
+    offsetY = (container.clientHeight - displayHeight) / 2
+  } else {
+    // 高度撑满容器
+    displayHeight = container.clientHeight
+    displayWidth = container.clientHeight * imgAspect
+    offsetX = (container.clientWidth - displayWidth) / 2
+    offsetY = 0
+  }
+  
+  // 使用工具函数绘制检测框
+  drawBoundingBoxes(ctx, keyframe.detections, {
+    displayWidth,
+    displayHeight,
+    offsetX,
+    offsetY
+  })
+}
+
+// 添加图片加载处理
+const handleImageLoad = (keyframeId: number, event: Event) => {
+  const img = event.target as HTMLImageElement
+  imgRefs.value[keyframeId] = img
+  nextTick(() => {
+    drawBoundingBoxesForFrame(keyframeId) // 使用新函数名
+  })
+}
+
+// 添加窗口大小变化监听
+window.addEventListener('resize', () => {
+  keyframes.value.forEach(keyframe => {
+    drawBoundingBoxesForFrame(keyframe.id) // 使用新函数名
+  })
+})
 
 onMounted(() => {
   const end = new Date()
@@ -237,13 +381,41 @@ onMounted(() => {
   start.setTime(start.getTime() - 3600 * 1000 * 24)
   timeRange.value = [start, end]
   handleTimeRangeChange()
+  startRealtimeSubscription()
+  
+  // 预加载图片
+  keyframes.value.forEach(keyframe => {
+    getImageUrl(keyframe.id)
+  })
+  
+  // 添加窗口大小变化监听
+  window.addEventListener('resize', () => {
+    keyframes.value.forEach(keyframe => {
+      drawBoundingBoxesForFrame(keyframe.id)
+    })
+  })
 })
 
-// Clean up object URLs when component is unmounted
+// 监听 keyframes 变化，加载新图片
+watch(keyframes, (newKeyframes) => {
+  newKeyframes.forEach(keyframe => {
+    if (!imageUrls.value[keyframe.id]) {
+      getImageUrl(keyframe.id)
+    }
+  })
+})
+
 onUnmounted(() => {
-  Object.values(imageUrls.value).forEach(urls => {
-    URL.revokeObjectURL(urls.thumbnail)
-    URL.revokeObjectURL(urls.original)
+  stopRealtimeSubscription()
+  // 清理图片缓存
+  imageCache.forEach(url => URL.revokeObjectURL(url))
+  imageCache.clear()
+  
+  // 移除窗口大小变化监听
+  window.removeEventListener('resize', () => {
+    keyframes.value.forEach(keyframe => {
+      drawBoundingBoxesForFrame(keyframe.id)
+    })
   })
 })
 </script>
@@ -256,17 +428,23 @@ onUnmounted(() => {
 .time-range-selector {
   margin-bottom: 20px;
   display: flex;
-  gap: 16px;
+  justify-content: space-between;
   align-items: center;
 }
 
-.size-selector {
-  width: 100px;
+.left-controls {
+  display: flex;
+  align-items: center;
+}
+
+.right-controls {
+  display: flex;
+  align-items: center;
 }
 
 .detection-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(480px, 1fr));
   gap: 20px;
   min-height: 200px;
 }
@@ -295,50 +473,6 @@ onUnmounted(() => {
   gap: 12px;
 }
 
-.image-container {
-  position: relative;
-  width: 100%;
-  padding-top: 75%; /* 4:3 Aspect Ratio */
-  background-color: #f5f7fa;
-  border-radius: 4px;
-  overflow: hidden;
-}
-
-.detection-image {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  opacity: 1;
-  transition: transform 0.3s ease;
-}
-
-.detection-image:hover {
-  transform: scale(1.02);
-}
-
-.detection-box {
-  position: absolute;
-  border: 2px solid #409eff;
-  background-color: rgba(64, 158, 255, 0.1);
-  pointer-events: none;
-}
-
-.detection-label {
-  position: absolute;
-  top: -20px;
-  left: 0;
-  background-color: #409eff;
-  color: white;
-  padding: 2px 6px;
-  border-radius: 2px;
-  font-size: 12px;
-  white-space: nowrap;
-  pointer-events: none;
-}
-
 .detection-info {
   display: flex;
   flex-wrap: wrap;
@@ -359,98 +493,89 @@ onUnmounted(() => {
   color: #606266;
 }
 
-.cursor-zoom {
-  cursor: zoom-in;
-}
-
-.preview-dialog {
-  :deep(.el-dialog) {
-    margin: 0 !important;
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    max-width: 90vw;
-    max-height: 90vh;
-    display: flex;
-    flex-direction: column;
-  }
-
-  :deep(.el-dialog__body) {
-    padding: 0;
-    flex: 1;
-    overflow: hidden;
-  }
-}
-
-.preview-container {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  background-color: #000;
-}
-
-.preview-image-wrapper {
-  position: relative;
-  flex: 1;
+.detection-image {
+  width: 100%;
+  height: 200px;
   overflow: hidden;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: transform 0.3s ease;
+  position: relative;
+  background-color: #f5f7fa;
   display: flex;
-  align-items: center;
   justify-content: center;
+  align-items: center;
 }
 
-.preview-image {
+.detection-image:hover {
+  transform: scale(1.02);
+}
+
+.image-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.bounding-box-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.detection-image img {
   max-width: 100%;
   max-height: 100%;
   object-fit: contain;
+  display: block;
 }
 
-.preview-info {
-  padding: 16px;
-  background-color: rgba(0, 0, 0, 0.8);
-  color: #fff;
+.detection-image img.image-error {
+  display: none;
 }
 
-.preview-time {
-  font-size: 14px;
-  margin-bottom: 8px;
-  color: #909399;
-}
-
-.preview-detections {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.preview-detection-item {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.preview-detection-box {
+.image-error-message {
   position: absolute;
-  border: 2px solid #409eff;
-  background-color: rgba(64, 158, 255, 0.1);
-  pointer-events: none;
-}
-
-.preview-detection-label {
-  position: absolute;
-  top: -24px;
+  top: 0;
   left: 0;
-  background-color: #409eff;
-  color: white;
-  padding: 2px 6px;
-  border-radius: 2px;
-  font-size: 14px;
-  white-space: nowrap;
-  pointer-events: none;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  color: #909399;
+  background-color: #f5f7fa;
 }
 
-.probability {
-  font-size: 12px;
-  color: #909399;
+.image-error-message .el-icon {
+  font-size: 32px;
+  margin-bottom: 8px;
+}
+
+.image-error-message span {
+  font-size: 14px;
+}
+
+.pagination {
+  display: flex;
+  justify-content: center;
+  padding: 20px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  margin-top: 20px;
+}
+
+.no-data-message {
+  width: 100%;
+  display: flex;
+  justify-content: center;
 }
 </style> 

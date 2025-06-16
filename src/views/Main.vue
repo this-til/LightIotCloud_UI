@@ -102,8 +102,8 @@ import { onMounted, onUnmounted, ref } from "vue"
 import { Cpu, Menu as IconMenu, Message, Setting } from "@element-plus/icons-vue"
 import { RouterView, useRoute } from "vue-router"
 import router from "@/router"
-import { createDefWebSocketClient, getDefWebSocketClient, getToken, OnlineState, subscriptionDeviceOnlineStateSwitchEvent, unsubscribe } from "@/util/api"
-import type { DeviceOnlineStateSwitchEvent } from "@/util/api"
+import { createDefWebSocketClient, getDefWebSocketClient, getToken, OnlineState, subscriptionDeviceOnlineStateSwitchEvent, unsubscribe } from "@/util/Api"
+import type { DeviceOnlineStateSwitchEvent } from "@/util/Api"
 import { ElNotification } from "element-plus"
 import { createClient } from "graphql-ws"
 import type { Client } from "graphql-ws"
@@ -154,7 +154,7 @@ onMounted(() => {
             title: value.onlineState === OnlineState.ONLINE
               ? "设备上线"
               : "设备离线",
-            message: value.deviceName
+            message: value.device.name
           }
         )
       },

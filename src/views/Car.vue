@@ -5,8 +5,12 @@
 <script setup lang="ts">
 
 import { onMounted, onUnmounted, ref } from "vue"
-import { CarState, getDefWebSocketClient, subscriptionCarStateReportEvent, unsubscribe } from "@/util/api"
+import { CarState, getDefWebSocketClient, subscriptionCarStateReportEvent, unsubscribe, Device } from "@/util/Api"
 import { useRoute } from "vue-router"
+
+const props = defineProps<{
+  car: Device
+}>()
 
 const route = useRoute()
 
