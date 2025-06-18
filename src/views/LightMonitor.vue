@@ -204,7 +204,9 @@ const loadStream = () => {
     if (Hls.isSupported() && !isIOS()) {
       hls = new Hls({
         maxLiveSyncPlaybackRate: 1.5,
-        debug: true
+        liveSyncDuration: 1,   // seconds
+        liveMaxLatencyDuration: 2, // seconds
+        debug: false,
       });
       
       hls.on(Hls.Events.ERROR, (event, data) => {
@@ -301,8 +303,12 @@ const drawDetections = () => {
   // 获取视频显示信息
   const displayInfo = getVideoDisplayInfo()
   
-  // 使用工具函数绘制检测框
-  drawBoundingBoxes(ctx, detections.value, displayInfo)
+  // Get video source dimensions
+  const sourceWidth = videoRef.value.videoWidth
+  const sourceHeight = videoRef.value.videoHeight
+  
+  // Pass source dimensions to draw function
+  drawBoundingBoxes(ctx, detections.value, displayInfo, sourceWidth, sourceHeight)
 }
 
 // 订阅持续检测事件

@@ -40,7 +40,7 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from "vue"
-import { computedActivateLight, getLightById } from "@/util/Api"
+import { computedActivateLight, getLightById, getDevices, DeviceType } from "@/util/Api"
 import type { Device } from "@/util/Api"
 import { RouterView, useRoute, useRouter } from "vue-router"
 import {
@@ -64,40 +64,39 @@ const goBack = () => {
 }
 
 const handleSelect = (key: string) => {
+  const id = route.query.id
   switch (key) {
     case "status":
       router.push({
-        path: "/light",
-        query: { id: route.query.id }
+        name: "light-content",
+        query: { id }
       })
       break
     case "history":
       router.push({
-        path: "/lightHistoryData",
-        query: { id: route.query.id }
+        name: "light-history",
+        query: { id }
       })
       break
     case "detection":
       router.push({
-        path: "/lightDetection",
-        query: { id: route.query.id }
+        name: "light-detection",
+        query: { id }
       })
       break
     case "monitor":
       router.push({
-        path: "/lightMonitor",
-        query: { id: route.query.id }
+        name: "light-monitor",
+        query: { id }
       })
       break
     case "chat":
-      // TODO: 实现实时对话页面
       console.log("实时对话 - 待实现")
       break
   }
 }
 
 </script>
-
 <style scoped>
 .light-detail-container {
   height: 100%;

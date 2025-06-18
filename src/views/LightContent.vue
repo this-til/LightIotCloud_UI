@@ -15,7 +15,7 @@
             <el-slider
               v-model="brightness"
               :min="0"
-              :max="100"
+              :max="1000"
               :step="1"
               :disabled="!light.online"
               @change="handleBrightnessChange"
@@ -25,19 +25,38 @@
         </div>
 
         <div class="control-item">
-          <div class="control-row">
-            <div class="control-label-wrapper">
-              <span class="control-label">自动亮度调节</span>
-              <span class="control-desc">根据环境光线自动调整亮度</span>
+          <div class="horizontal-control-group">
+            <!-- 自动亮度调节 -->
+            <div class="control-row">
+              <div class="control-label-wrapper">
+                <span class="control-label">自动亮度调节</span>
+                <span class="control-desc">根据环境光线自动调整亮度</span>
+              </div>
+              <el-switch
+                v-model="autoBrightness"
+                :disabled="!light.online"
+                @change="handleAutoBrightnessChange"
+                active-text="开启"
+                inactive-text="关闭"
+                class="custom-switch"
+              />
             </div>
-            <el-switch
-              v-model="autoBrightness"
-              :disabled="!light.online"
-              @change="handleAutoBrightnessChange"
-              active-text="开启"
-              inactive-text="关闭"
-              class="custom-switch"
-            />
+            
+            <!-- 卷帘门开关 -->
+            <div class="control-row">
+              <div class="control-label-wrapper">
+                <span class="control-label">卷帘门开关</span>
+                <span class="control-desc">控制卷帘门的开闭</span>
+              </div>
+              <el-switch
+                v-model="rollingDoorOpen"
+                :disabled="!light.online"
+                @change="handleRollingDoorChange"
+                active-text="开启"
+                inactive-text="关闭"
+                class="custom-switch"
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -56,7 +75,7 @@
             </el-icon>
             <span>温度</span>
           </div>
-          <div class="data-value">{{ lightData.temperature }}°C</div>
+          <div class="data-value">{{ formatValue(lightData.temperature) }}°C</div>
         </el-card>
 
         <el-card shadow="hover" class="data-card">
@@ -66,7 +85,7 @@
             </el-icon>
             <span>湿度</span>
           </div>
-          <div class="data-value">{{ lightData.humidity }}%</div>
+          <div class="data-value">{{ formatValue(lightData.humidity) }}%</div>
         </el-card>
 
         <el-card shadow="hover" class="data-card">
@@ -76,7 +95,7 @@
             </el-icon>
             <span>PM2.5</span>
           </div>
-          <div class="data-value">{{ lightData.pm2_5 }} μg/m³</div>
+          <div class="data-value">{{ formatValue(lightData.pm2_5) }} μg/m³</div>
         </el-card>
 
         <el-card shadow="hover" class="data-card">
@@ -86,7 +105,7 @@
             </el-icon>
             <span>PM10</span>
           </div>
-          <div class="data-value">{{ lightData.pm10 }} μg/m³</div>
+          <div class="data-value">{{ formatValue(lightData.pm10) }} μg/m³</div>
         </el-card>
       </div>
     </div>
@@ -104,7 +123,7 @@
             </el-icon>
             <span>风速</span>
           </div>
-          <div class="data-value">{{ lightData.windSpeed }} m/s</div>
+          <div class="data-value">{{ formatValue(lightData.windSpeed) }} m/s</div>
         </el-card>
 
         <el-card shadow="hover" class="data-card">
@@ -114,7 +133,7 @@
             </el-icon>
             <span>风向</span>
           </div>
-          <div class="data-value">{{ lightData.windDirection }}°</div>
+          <div class="data-value">{{ formatValue(lightData.windDirection) }}°</div>
         </el-card>
 
         <el-card shadow="hover" class="data-card">
@@ -124,7 +143,7 @@
             </el-icon>
             <span>环境光亮</span>
           </div>
-          <div class="data-value">{{ lightData.illumination }} lux</div>
+          <div class="data-value">{{ formatValue(lightData.illumination) }} lux</div>
         </el-card>
       </div>
     </div>
@@ -134,29 +153,40 @@
       <div class="section-header">
         <h2>设备状态</h2>
       </div>
-      <div class="data-grid">
-        <el-card shadow="hover" class="data-card">
-          <div class="data-header">
-            <el-icon class="data-icon">
+      <div class="power-grid">
+    
+        <!-- 设备功率 -->
+        <el-card shadow="hover" class="power-card">
+          <div class="power-header">
+            <el-icon class="power-icon">
               <Lightning />
             </el-icon>
-            <span>无线充电</span>
+            <span>设备功率</span>
           </div>
-          <div class="data-value">
-            <el-tag :type="lightState.wirelessChargingEnabled ? 'success' : 'info'" :effect="lightState.wirelessChargingEnabled ? 'light' : 'plain'">
-              {{ lightState.wirelessChargingEnabled ? "已启用" : "未启用" }}
-            </el-tag>
+          <div class="power-value">
+            <div>{{ formatValue(lightState.power) }} W</div>
+            <div class="sub-values">
+              <span>{{ formatValue(lightState.electricity) }} A</span>
+              <span>{{ formatValue(lightState.voltage) }} V</span>
+            </div>
           </div>
         </el-card>
-
-        <el-card shadow="hover" class="data-card">
-          <div class="data-header">
-            <el-icon class="data-icon">
-              <Monitor />
+        
+        <!-- 无线充电功率 -->
+        <el-card shadow="hover" class="power-card">
+          <div class="power-header">
+            <el-icon class="power-icon">
+              <Connection />
             </el-icon>
-            <span>充电功率</span>
+            <span>无线充电功率</span>
           </div>
-          <div class="data-value">{{ lightState.wirelessChargingPower }} W</div>
+          <div class="power-value">
+            <div>{{ formatValue(lightState.wirelessChargingPower) }} W</div>
+            <div class="sub-values">
+              <span>{{ formatValue(lightState.wirelessChargingElectricity) }} A</span>
+              <span>{{ formatValue(lightState.wirelessChargingVoltage) }} V</span>
+            </div>
+          </div>
         </el-card>
       </div>
     </div>
@@ -165,10 +195,10 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from "vue"
-import { getDefWebSocketClient, subscriptionLightDataReportEventEvent, subscriptionLightStateReportEvent, setLightGear, setAutomaticGear, SUCCESSFUL } from "@/util/Api"
+import { getDefWebSocketClient, subscriptionLightDataReportEventEvent, subscriptionLightStateReportEvent, setLightGear, setAutomaticGear, setRollingDoor, SUCCESSFUL } from "@/util/Api"
 import type { Device, LightData, LightState, unsubscribe } from "@/util/Api"
 import { useRoute } from "vue-router"
-import { Monitor, WindPower, Compass, Sunny, Lightning } from "@element-plus/icons-vue"
+import { Monitor, WindPower, Compass, Sunny, Lightning, Connection } from "@element-plus/icons-vue"
 import { computedAsync } from "@vueuse/core"
 import { ElNotification } from "element-plus"
 
@@ -182,6 +212,7 @@ const lightData = ref<LightData>({})
 const lightState = ref<LightState>({})
 const brightness = ref(50)
 const autoBrightness = ref(false)
+const rollingDoorOpen = ref(false)
 
 let unsubscriptionLightStateReportEvent: unsubscribe | null = null
 let unsubscriptionLightDataReportEvent: unsubscribe | null = null
@@ -262,7 +293,7 @@ const handleBrightnessChange = async (value: number) => {
 
 const handleAutoBrightnessChange = async (value: boolean) => {
   try {
-    const result = await setAutomaticGear(Number(route.query.id), value === 1)
+    const result = await setAutomaticGear(Number(route.query.id), value)
     if (result === SUCCESSFUL) {
       ElNotification({
         type: "success",
@@ -287,6 +318,49 @@ const handleAutoBrightnessChange = async (value: boolean) => {
       duration: 2000
     })
   }
+}
+
+const handleRollingDoorChange = async (value: boolean) => {
+  try {
+    const result = await setRollingDoor(Number(route.query.id), value)
+    if (result === SUCCESSFUL) {
+      ElNotification({
+        type: "success",
+        title: "设置成功",
+        message: `卷帘门已${value ? "开启" : "关闭"}`,
+        duration: 2000
+      })
+    } else {
+      ElNotification({
+        type: "error",
+        title: "设置失败",
+        message: "卷帘门设置失败，请重试",
+        duration: 2000
+      })
+    }
+  } catch (error) {
+    console.error("设置卷帘门失败:", error)
+    ElNotification({
+      type: "error",
+      title: "设置失败",
+      message: "设置卷帘门时发生错误",
+      duration: 2000
+    })
+  }
+}
+
+// 添加一个格式化函数
+const formatValue = (value: number | undefined): string => {
+  if (value === undefined || value === null) return '--'
+  
+  // 处理特殊值：风向角度
+  if (value === lightData.value.windDirection) {
+    // 风向角度保留整数
+    return Math.round(value).toString()
+  }
+  
+  // 其他值保留一位小数
+  return Number(value.toFixed(1)).toString()
 }
 </script>
 
@@ -423,5 +497,85 @@ const handleAutoBrightnessChange = async (value: boolean) => {
 
 :deep(.custom-switch) {
   margin-left: 8px;
+}
+
+/* 添加功率网格样式 */
+.power-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.power-card {
+  transition: all 0.3s ease;
+  text-align: center;
+}
+
+.power-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.power-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: #606266;
+  margin-bottom: 12px;
+}
+
+.power-icon {
+  color: #409eff;
+  font-size: 36px;
+  margin-bottom: 8px;
+}
+
+.power-value {
+  font-size: 26px;
+  font-weight: 600;
+  color: #303133;
+  text-align: center;
+  padding: 8px 0;
+}
+
+.power-value .sub-values {
+  display: flex;
+  justify-content: space-around;
+  font-size: 18px;
+  margin-top: 8px;
+  color: #606266;
+}
+
+.switch-group {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
+.rolling-door-switch {
+  margin-left: 8px;
+}
+
+.horizontal-control-group {
+  display: flex;
+  gap: 16px;
+}
+
+.horizontal-control-group .control-row {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  padding: 8px 0;
+}
+
+.control-label-wrapper {
+  min-width: 100px;
+  margin-right: 16px;
+}
+
+:deep(.custom-switch) {
+  margin-left: 0;
 }
 </style> 

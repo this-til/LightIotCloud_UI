@@ -9,6 +9,7 @@ export {}
 declare module 'vue' {
   export interface GlobalComponents {
     DeviceList: typeof import('./src/components/DeviceList.vue')['default']
+    DeviceListPlate: typeof import('./src/components/DeviceListPlate.vue')['default']
     ElAside: typeof import('element-plus/es')['ElAside']
     ElBadge: typeof import('element-plus/es')['ElBadge']
     ElButton: typeof import('element-plus/es')['ElButton']
@@ -39,6 +40,7 @@ declare module 'vue' {
     ElTable: typeof import('element-plus/es')['ElTable']
     ElTableColumn: typeof import('element-plus/es')['ElTableColumn']
     ElTag: typeof import('element-plus/es')['ElTag']
+    LightDetailContainer: typeof import('./src/components/LightDetailContainer.vue')['default']
     Registered: typeof import('./src/components/Registered.vue')['default']
     RetrievePassword: typeof import('./src/components/RetrievePassword.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']

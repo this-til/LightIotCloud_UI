@@ -34,18 +34,17 @@
             <div class="detection-image" @click="showOriginalImage(keyframe.id)">
               <div class="image-container">
                 <img
-                  v-if="!imageLoadError"
+                  v-if="!imageLoadErrors[keyframe.id]"
                   :src="imageUrls[keyframe.id]"
                   alt="Detection"
                   ref="imgRef"
                   @load="handleImageLoad(keyframe.id, $event)"
-                  @error="handleImageError"
                 />
                 <canvas 
                   :id="`canvas-${keyframe.id}`" 
                   class="bounding-box-canvas"
                 ></canvas>
-                <div v-if="imageLoadError" class="image-error-message">
+                <div v-if="imageLoadErrors[keyframe.id]" class="image-error-message">
                   <el-icon>
                     <Picture />
                   </el-icon>
@@ -132,17 +131,10 @@ const timeShortcuts = [
 
 const imageCache = new Map<number, string>()
 const imageUrls = ref<Record<number, string>>({})
-const imageLoadError = ref(false)
+const imageLoadErrors = ref<Record<number, boolean>>({})
 
 // 存储图片引用
 const imgRefs = ref<Record<number, HTMLImageElement | null>>({})
-
-const getTagType = (probability: number) => {
-  if (probability >= 0.8) return "success"
-  if (probability >= 0.5) return "warning"
-  return "info"
-}
-
 const handleTimeRangeChange = async () => {
   if (!timeRange.value) return
 
@@ -200,16 +192,14 @@ const startRealtimeSubscription = () => {
     lightId,
     {
       next: async (keyframe: DetectionKeyframe) => {
-        // 将新数据添加到列表开头
         keyframes.value.unshift(keyframe)
-
-        // 如果超过页面大小，移除最后一个
         if (keyframes.value.length > pageSize.value) {
           keyframes.value.pop()
         }
-
-        // 更新总数
         totalCount.value++
+        
+        // 主动加载新图片
+        await getImageUrl(keyframe.id)
       },
       error: (error) => {
         console.error("Detection subscription error:", error)
@@ -257,15 +247,11 @@ const getImageUrl = async (keyframeId: number) => {
     const url = URL.createObjectURL(blob)
     imageCache.set(keyframeId, url)
     imageUrls.value[keyframeId] = url
-    imageLoadError.value = false
+    imageLoadErrors.value[keyframeId] = false
   } catch (error) {
     console.error("Failed to load image:", error)
-    imageLoadError.value = true
+    imageLoadErrors.value[keyframeId] = true
   }
-}
-
-const handleImageError = () => {
-  imageLoadError.value = true
 }
 
 const showOriginalImage = async (keyframeId: number) => {
@@ -350,13 +336,13 @@ const drawBoundingBoxesForFrame = (keyframeId: number) => {
     offsetY = 0
   }
   
-  // 使用工具函数绘制检测框
+ 
   drawBoundingBoxes(ctx, keyframe.detections, {
     displayWidth,
     displayHeight,
     offsetX,
     offsetY
-  })
+  }) 
 }
 
 // 添加图片加载处理

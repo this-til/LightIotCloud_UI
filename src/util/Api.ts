@@ -18,10 +18,12 @@ type String = string;
 
 export const CAR = "CAR"
 export const LIGHT = "LIGHT"
+export const UAV = "UAV"
 
 export enum DeviceType {
     CAR = "CAR",
     LIGHT = "LIGHT",
+    UAV = "UAV"
 }
 
 export const ONLINE = "ONLINE"
@@ -74,8 +76,13 @@ export interface LightData {
 }
 
 export interface LightState {
-    enableWirelessCharging: Boolean
-    wirelessChargingPower: number
+    electricity? : number
+    voltage? : number
+    power? : number
+
+    wirelessChargingElectricity?: number
+    wirelessChargingVoltage?: number
+    wirelessChargingPower?: number
 
     [key: string]: unknown;
 }
@@ -107,9 +114,6 @@ export interface DetectionModel {
 }
 
 export interface Detection {
-    id: number
-    keyframeId: number
-    itemId: number
     x: number
     y: number
     w: number
@@ -310,7 +314,11 @@ export function subscriptionDeviceOnlineStateSwitchEvent(
 export const lightStateReportEventGql = `
     subscription lightStateReportEvent($lightId : Int!){
       lightStateReportEvent(lightId : $lightId) {
-        enableWirelessCharging
+        electricity
+        voltage
+        power
+        wirelessChargingElectricity
+        wirelessChargingVoltage
         wirelessChargingPower
       }
     }
@@ -358,9 +366,6 @@ export const lightDetectionReportEventGql = `
             deviceId
             time
             detections {
-                id
-                keyframeId
-                itemId
                 x
                 y
                 w
@@ -735,28 +740,16 @@ query getDevices($deviceType: DeviceType) {
 }
 `
 
-export async function getLightList(): Promise<Device[]> {
+export async function getDevices(deviceType: DeviceType): Promise<Device[]> {
     const graphqlResponse = await postGql<
             {
                 self: {
                     devices: Device[]
                 }
             }
-    >(DEVICES_QUERY, { deviceType: DeviceType.LIGHT })
+    >(DEVICES_QUERY, { deviceType })
     return graphqlResponse.data?.self?.devices as Device[]
 }
-
-export async function getCarList(): Promise<Device[]> {
-    const graphqlResponse = await postGql<
-            {
-                self: {
-                    devices: Device[]
-                }
-            }
-    >(DEVICES_QUERY, { deviceType: DeviceType.CAR })
-    return graphqlResponse.data?.self?.devices as Device[]
-}
-
 
 export const LIGHT_DATA_QUERY = `
    query getLightHistory($lightId: ID!, $timeRange: TimeRange) {
@@ -928,9 +921,6 @@ query getDetectionKeyframes($lightId: ID!, $page: Page, $timeRange: TimeRange) {
                     deviceId
                     time
                     detections {
-                        id
-                        keyframeId
-                        itemId
                         x
                         y
                         w
@@ -1076,7 +1066,11 @@ query getDeviceLightState($deviceId: ID!) {
     getDeviceById(id: $deviceId, deviceType: LIGHT) {
       asLight {
         lightState {
-          enableWirelessCharging
+          electricity
+          voltage
+          power
+          wirelessChargingElectricity
+          wirelessChargingVoltage
           wirelessChargingPower
         }
       }
@@ -1288,9 +1282,6 @@ export async function commandDown(
 export const LIGHT_SUSTAINED_DETECTION_REPORT_EVENT_GQL = `
 subscription lightSustainedDetectionReportEvent($lightId: Int!) {
     lightSustainedDetectionReportEvent(lightId: $lightId) {
-        id
-        keyframeId
-        itemId
         x
         y
         w
@@ -1317,4 +1308,42 @@ export function subscriptionLightSustainedDetectionReportEvent(
             res => res.data?.lightSustainedDetectionReportEvent as Detection[]
         )
     )
+}
+
+export const SET_ROLLING_DOOR_MUTATION = `
+mutation setRollingDoor($lightId: ID!, $open: Boolean!) {
+    self {
+        getDeviceById(id: $lightId, deviceType: LIGHT) {
+            asLight {
+                setRollingDoor(open: $open) {
+                    resultType
+                }
+            }
+        }
+    }
+}
+`
+
+export async function setRollingDoor(
+    lightId: ID,
+    open: boolean
+): Promise<ResultType> {
+    const response = await postGql<
+        {
+            self: {
+                getDeviceById: {
+                    asLight: {
+                        setRollingDoor: {
+                            resultType: ResultType
+                        }
+                    }
+                }
+            }
+        }
+    >(
+        SET_ROLLING_DOOR_MUTATION,
+        { lightId, open }
+    )
+
+    return response?.data?.self?.getDeviceById?.asLight?.setRollingDoor?.resultType as ResultType
 }

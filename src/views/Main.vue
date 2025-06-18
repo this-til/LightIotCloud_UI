@@ -48,7 +48,7 @@
               </template>
 
               <el-menu-item
-                index="1-1"
+                index="/deviceList/LIGHT"
                 @click="displayAllLight"
                 class="menu-item"
               >
@@ -60,7 +60,7 @@
               </el-menu-item>
 
               <el-menu-item
-                index="1-2"
+                index="/deviceList/CAR"
                 @click="displayAllCar"
                 class="menu-item"
               >
@@ -68,6 +68,18 @@
                   <div class="item-indicator"></div>
                   <span>巡检小车</span>
                   <el-badge :value="8" size="small" class="item-badge" />
+                </div>
+              </el-menu-item>
+
+              <el-menu-item
+                index="/deviceList/UAV"
+                class="menu-item"
+                @click="displayAllUav"
+              >
+                <div class="submenu-item">
+                  <div class="item-indicator"></div>
+                  <span>无人机</span>
+                  <el-badge :value="5" size="small" class="item-badge" />
                 </div>
               </el-menu-item>
             </el-sub-menu>
@@ -99,10 +111,10 @@
 
 <script lang="ts" setup>
 import { onMounted, onUnmounted, ref } from "vue"
-import { Cpu, Menu as IconMenu, Message, Setting } from "@element-plus/icons-vue"
+import { Cpu, Menu as IconMenu, Message, Setting, Position } from "@element-plus/icons-vue"
 import { RouterView, useRoute } from "vue-router"
 import router from "@/router"
-import { createDefWebSocketClient, getDefWebSocketClient, getToken, OnlineState, subscriptionDeviceOnlineStateSwitchEvent, unsubscribe } from "@/util/Api"
+import { createDefWebSocketClient, getDefWebSocketClient, getToken, OnlineState, subscriptionDeviceOnlineStateSwitchEvent, unsubscribe, getDevices, DeviceType } from "@/util/Api"
 import type { DeviceOnlineStateSwitchEvent } from "@/util/Api"
 import { ElNotification } from "element-plus"
 import { createClient } from "graphql-ws"
@@ -114,14 +126,21 @@ const activeMenu = ref("1-1")
 function displayAllLight() {
   activeMenu.value = "1-1"
   router.push({
-    path: "/allLight"
+    path: "/deviceList/LIGHT"
   })
 }
 
 function displayAllCar() {
   activeMenu.value = "1-2"
   router.push({
-    path: "/allCar"
+    path: "/deviceList/CAR"
+  })
+}
+
+function displayAllUav() {
+  activeMenu.value = "1-3"
+  router.push({
+    path: "/deviceList/UAV"
   })
 }
 
