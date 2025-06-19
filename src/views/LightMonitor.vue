@@ -8,18 +8,46 @@
       
         
         <div class="direction-controls">
-          <el-button class="direction-btn up-btn" @click="controlPTZ('up')">
+          <el-button 
+            class="direction-btn up-btn" 
+            @mousedown="startContinuousControl('up')"
+            @mouseup="stopContinuousControl"
+            @mouseleave="stopContinuousControl"
+            @touchstart="startContinuousControl('up')"
+            @touchend="stopContinuousControl"
+          >
             <el-icon><CaretTop /></el-icon>
           </el-button>
           <div class="middle-row">
-            <el-button class="direction-btn left-btn" @click="controlPTZ('left')">
+            <el-button 
+              class="direction-btn left-btn" 
+              @mousedown="startContinuousControl('left')"
+              @mouseup="stopContinuousControl"
+              @mouseleave="stopContinuousControl"
+              @touchstart="startContinuousControl('left')"
+              @touchend="stopContinuousControl"
+            >
               <el-icon><CaretLeft /></el-icon>
             </el-button>
-            <el-button class="direction-btn right-btn" @click="controlPTZ('right')">
+            <el-button 
+              class="direction-btn right-btn" 
+              @mousedown="startContinuousControl('right')"
+              @mouseup="stopContinuousControl"
+              @mouseleave="stopContinuousControl"
+              @touchstart="startContinuousControl('right')"
+              @touchend="stopContinuousControl"
+            >
               <el-icon><CaretRight /></el-icon>
             </el-button>
           </div>
-          <el-button class="direction-btn down-btn" @click="controlPTZ('down')">
+          <el-button 
+            class="direction-btn down-btn" 
+            @mousedown="startContinuousControl('down')"
+            @mouseup="stopContinuousControl"
+            @mouseleave="stopContinuousControl"
+            @touchstart="startContinuousControl('down')"
+            @touchend="stopContinuousControl"
+          >
             <el-icon><CaretBottom /></el-icon>
           </el-button>
         </div>
@@ -80,7 +108,8 @@ import {
   getDefWebSocketClient,
   type Detection,
   setSustainedDetection,
-  closeSustainedDetection
+  closeSustainedDetection,
+  ptzControl
 } from '@/util/Api'
 import { drawBoundingBoxes } from '@/util/DrawBoundingBoxes'
 
@@ -100,6 +129,10 @@ const streamUrl = ref<string>(`http://192.168.117.2:8888/hik_cam/index.m3u8`)
 // 添加模型选项和选择状态
 const modelOptions = Object.keys(colorPresetMap);
 const selectedModels = ref<string[]>([]);
+
+// 添加定时器变量
+const ptzTimer = ref<number | null>(null)
+const currentDirection = ref<string | null>(null)
 
 // 处理模型选择变化
 const handleModelChange = async (value: string[]) => {
@@ -161,11 +194,75 @@ const clearCanvas = () => {
   ctx.clearRect(0, 0, canvas.width, canvas.height)
 }
 
-const controlPTZ = (direction: string) => {
-  // 这里添加实际的PTZ控制API调用
-  // 根据项目实际API格式进行调整
-  // 例如: await api.controlPTZ(deviceId, direction, ptzSpeed.value)
-  ElMessage.success(`云台控制: ${direction}`)
+// 云台控制函数
+const controlPTZ = async (direction: string) => {
+  const lightId = Number(route.query.id)
+  if (!lightId) {
+    ElMessage.warning('设备ID无效')
+    return
+  }
+
+  try {
+    // 将方向映射为 API 需要的格式
+    let ptzCommand: 'TILT_UP' | 'TILT_DOWN' | 'PAN_LEFT' | 'PAN_RIGHT'
+    switch (direction) {
+      case 'up':
+        ptzCommand = 'TILT_UP'
+        break
+      case 'down':
+        ptzCommand = 'TILT_DOWN'
+        break
+      case 'left':
+        ptzCommand = 'PAN_LEFT'
+        break
+      case 'right':
+        ptzCommand = 'PAN_RIGHT'
+        break
+      default:
+        ElMessage.warning('未知的方向指令')
+        return
+    }
+
+    // 调用云台控制 API
+    const result = await ptzControl(lightId, ptzCommand)
+    
+    if (result === 'SUCCESSFUL') {
+      // 成功时不显示消息，避免频繁弹出
+    } else {
+      ElMessage.error(`云台控制: ${direction} 失败`)
+    }
+  } catch (error) {
+    console.error('云台控制请求失败:', error)
+    ElMessage.error(`云台控制请求失败: ${error.message}`)
+  }
+}
+
+// 开始持续控制
+const startContinuousControl = (direction: string) => {
+  // 清除现有定时器
+  stopContinuousControl()
+  
+  // 设置当前方向
+  currentDirection.value = direction
+  
+  // 立即执行一次控制
+  controlPTZ(direction)
+  
+  // 设置定时器每0.5秒执行一次
+  ptzTimer.value = setInterval(() => {
+    if (currentDirection.value) {
+      controlPTZ(currentDirection.value)
+    }
+  }, 500) as unknown as number
+}
+
+// 停止持续控制
+const stopContinuousControl = () => {
+  if (ptzTimer.value) {
+    clearInterval(ptzTimer.value)
+    ptzTimer.value = null
+  }
+  currentDirection.value = null
 }
 
 const retryPause = 2000; // 重试间隔
@@ -378,6 +475,9 @@ onUnmounted(() => {
   if (unsubscribeSustained) {
     unsubscribeSustained()
   }
+  
+  // 确保组件卸载时清除定时器
+  stopContinuousControl()
 })
 
 // 添加窗口大小变化监听

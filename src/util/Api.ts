@@ -1347,3 +1347,41 @@ export async function setRollingDoor(
 
     return response?.data?.self?.getDeviceById?.asLight?.setRollingDoor?.resultType as ResultType
 }
+
+export const PTZ_CONTROL_MUTATION = `
+mutation ptzControl($lightId: ID!, $ptzControl: PtzControl!) {
+    self {
+        getDeviceById(id: $lightId, deviceType: LIGHT) {
+            asLight {
+                ptzControl(ptzControl: $ptzControl) {
+                    resultType
+                }
+            }
+        }
+    }
+}
+`
+
+export async function ptzControl(
+    lightId: ID,
+    ptzControl: 'TILT_UP' | 'TILT_DOWN' | 'PAN_LEFT' | 'PAN_RIGHT'
+): Promise<ResultType> {
+    const response = await postGql<
+        {
+            self: {
+                getDeviceById: {
+                    asLight: {
+                        ptzControl: {
+                            resultType: ResultType
+                        }
+                    }
+                }
+            }
+        }
+    >(
+        PTZ_CONTROL_MUTATION,
+        { lightId, ptzControl }
+    )
+
+    return response?.data?.self?.getDeviceById?.asLight?.ptzControl?.resultType as ResultType
+}

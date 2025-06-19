@@ -1,59 +1,39 @@
 ﻿<template>
-  <el-container class="light-detail-container">
-    <el-header class="header">
-      <el-menu
-        mode="horizontal"
-        class="header-menu"
-        :ellipsis="false"
-      >
-        <el-menu-item index="1" @click="goBack">
-          <el-icon>
-            <Back />
-          </el-icon>
-          返回
-        </el-menu-item>
-        <el-menu-item index="status" @click="handleSelect('status')">当前状态</el-menu-item>
-        <el-menu-item index="history" @click="handleSelect('history')">历史数据</el-menu-item>
-        <el-menu-item index="detection" @click="handleSelect('detection')">检测结果</el-menu-item>
-        <el-menu-item index="monitor" @click="handleSelect('monitor')">实时监控</el-menu-item>
-        <el-menu-item index="chat" @click="handleSelect('chat')">实时对话</el-menu-item>
-        <div class="flex-grow" />
-        <div class="header-right">
-          <h1 class="title">{{ light.name }}</h1>
-          <el-tag :type="light.online ? 'success' : 'danger'" :effect="light.online ? 'light' : 'plain'" size="large">
-            <el-icon class="status-icon">
-              <CircleCheckFilled v-if="light.online" />
-              <CircleCloseFilled v-else />
-            </el-icon>
-            {{ light.online ? "在线" : "离线" }}
-          </el-tag>
-        </div>
-      </el-menu>
-    </el-header>
-
+  <div class="light-detail-container">
+    <!-- 使用新的 Header 组件 -->
+    <Header 
+      :light="light" 
+      :menu-items="menuItems"
+      @select="handleSelect"
+      @back="goBack"
+    />
+    
     <el-main>
       <RouterView :light="light" />
     </el-main>
-
-  </el-container>
+  </div>
 </template>
 
 <script setup lang="ts">
 import { onMounted, ref } from "vue"
-import { computedActivateLight, getLightById, getDevices, DeviceType } from "@/util/Api"
+import { getLightById } from "@/util/Api"
 import type { Device } from "@/util/Api"
-import { RouterView, useRoute, useRouter } from "vue-router"
-import {
-  CircleCheckFilled,
-  CircleCloseFilled,
-  Back
-} from "@element-plus/icons-vue"
-import { computedAsync } from "@vueuse/core"
+import { useRoute, useRouter } from "vue-router"
+import Header from "@/components/Header.vue"
 
 const route = useRoute()
 const router = useRouter()
 
 const light = ref<Device>({} as Device)
+
+// 定义菜单项 - 保持与原结构完全一致
+const menuItems = ref([
+  { index: "status", label: "当前状态" },
+  { index: "history", label: "历史数据" },
+  { index: "detection", label: "检测结果" },
+  { index: "monitor", label: "实时监控" },
+  { index: "chat", label: "实时对话" }
+])
 
 onMounted(async () => {
   light.value = await getLightById(Number(router.currentRoute.value.query.id))
@@ -90,64 +70,36 @@ const handleSelect = (key: string) => {
         query: { id }
       })
       break
+    case "webrtc-monitor":
+      router.push({
+        name: "light-webrtc-monitor",
+        query: { id }
+      })
+      break
     case "chat":
       console.log("实时对话 - 待实现")
       break
   }
 }
-
 </script>
+
 <style scoped>
+/* 保持原容器样式不变 */
 .light-detail-container {
+  display: flex;
+  flex-direction: column;
   height: 100%;
   background-color: #f5f7fa;
-}
-
-.header {
-  background: white;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  margin-bottom: 20px;
-}
-
-.header-menu {
-  display: flex;
-  align-items: center;
-  height: 60px;
-  border-bottom: none;
-}
-
-.header-menu .el-menu-item {
-  height: 60px;
-  line-height: 60px;
-}
-
-.flex-grow {
-  flex-grow: 1;
-}
-
-.header-right {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
-.title {
-  font-size: 20px;
-  font-weight: 600;
-  color: #303133;
-  margin: 0;
-}
-
-.status-icon {
-  margin-right: 4px;
 }
 
 :deep(.el-main) {
   padding: 20px;
   background-color: #f5f7fa;
+  flex: 1;
+  overflow: auto;
 }
 
 .el-main {
-  padding: 0px;
+  padding: 0;
 }
 </style>
