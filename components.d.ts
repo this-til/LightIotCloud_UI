@@ -10,6 +10,7 @@ declare module 'vue' {
   export interface GlobalComponents {
     DeviceList: typeof import('./src/components/DeviceList.vue')['default']
     DeviceListPlate: typeof import('./src/components/DeviceListPlate.vue')['default']
+    DevicePlate: typeof import('./src/components/DevicePlate.vue')['default']
     ElAside: typeof import('element-plus/es')['ElAside']
     ElBadge: typeof import('element-plus/es')['ElBadge']
     ElButton: typeof import('element-plus/es')['ElButton']

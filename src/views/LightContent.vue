@@ -17,7 +17,7 @@
               :min="0"
               :max="1000"
               :step="1"
-              :disabled="!light.online"
+              :disabled="!device.online"
               @change="handleBrightnessChange"
               class="custom-slider"
             />
@@ -34,14 +34,14 @@
               </div>
               <el-switch
                 v-model="autoBrightness"
-                :disabled="!light.online"
+                :disabled="!device.online"
                 @change="handleAutoBrightnessChange"
                 active-text="开启"
                 inactive-text="关闭"
                 class="custom-switch"
               />
             </div>
-            
+
             <!-- 卷帘门开关 -->
             <div class="control-row">
               <div class="control-label-wrapper">
@@ -50,7 +50,7 @@
               </div>
               <el-switch
                 v-model="rollingDoorOpen"
-                :disabled="!light.online"
+                :disabled="!device.online"
                 @change="handleRollingDoorChange"
                 active-text="开启"
                 inactive-text="关闭"
@@ -154,7 +154,7 @@
         <h2>设备状态</h2>
       </div>
       <div class="power-grid">
-    
+
         <!-- 设备功率 -->
         <el-card shadow="hover" class="power-card">
           <div class="power-header">
@@ -171,7 +171,7 @@
             </div>
           </div>
         </el-card>
-        
+
         <!-- 无线充电功率 -->
         <el-card shadow="hover" class="power-card">
           <div class="power-header">
@@ -203,13 +203,13 @@ import { computedAsync } from "@vueuse/core"
 import { ElNotification } from "element-plus"
 
 const props = defineProps<{
-  light: Device
+  device: Device
 }>()
 
 const route = useRoute()
 
-const lightData = ref<LightData>({})
-const lightState = ref<LightState>({})
+const lightData = ref<LightData>({} as LightData)
+const lightState = ref<LightState>({} as LightData)
 const brightness = ref(50)
 const autoBrightness = ref(false)
 const rollingDoorOpen = ref(false)
@@ -218,7 +218,7 @@ let unsubscriptionLightStateReportEvent: unsubscribe | null = null
 let unsubscriptionLightDataReportEvent: unsubscribe | null = null
 
 onMounted(async () => {
-  const lightId: number = Number.parseInt(route.query.id)
+  const lightId: number = props.device.id
 
   unsubscriptionLightStateReportEvent = subscriptionLightStateReportEvent(
     getDefWebSocketClient(),
@@ -351,14 +351,14 @@ const handleRollingDoorChange = async (value: boolean) => {
 
 // 添加一个格式化函数
 const formatValue = (value: number | undefined): string => {
-  if (value === undefined || value === null) return '--'
-  
+  if (value === undefined || value === null) return "--"
+
   // 处理特殊值：风向角度
   if (value === lightData.value.windDirection) {
     // 风向角度保留整数
     return Math.round(value).toString()
   }
-  
+
   // 其他值保留一位小数
   return Number(value.toFixed(1)).toString()
 }

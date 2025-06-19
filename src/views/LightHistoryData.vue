@@ -94,11 +94,10 @@ import { getLightHistoryData } from "@/util/Api"
 import type { LightData, TimeRange, Device } from "@/util/Api"
 
 const props = defineProps<{
-  light: Device
+  device: Device
 }>()
 
 const route = useRoute()
-const lightId = Number(route.query.id)
 
 // Chart refs
 const temperatureChartRef = ref<HTMLElement>()
@@ -249,7 +248,7 @@ const handleTimeRangeChange = async () => {
   }
 
   try {
-    const data = await getLightHistoryData(lightId, timeRangeParam)
+    const data = await getLightHistoryData(props.device.id, timeRangeParam)
     updateCharts(data)
   } catch (error) {
     console.error("Failed to fetch history data:", error)

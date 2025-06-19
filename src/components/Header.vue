@@ -11,26 +11,26 @@
         </el-icon>
         返回
       </el-menu-item>
-      
+
       <!-- 动态菜单项 -->
-      <el-menu-item 
-        v-for="item in menuItems" 
+      <el-menu-item
+        v-for="item in menuItems"
         :key="item.index"
         :index="item.index"
         @click="handleSelect(item.index)"
       >
         {{ item.label }}
       </el-menu-item>
-      
+
       <div class="flex-grow" />
       <div class="header-right">
-        <h1 class="title">{{ light.name }}</h1>
-        <el-tag :type="light.online ? 'success' : 'danger'" :effect="light.online ? 'light' : 'plain'" size="large">
+        <h1 class="title">{{ device.name }}</h1>
+        <el-tag :type="device.online ? 'success' : 'danger'" :effect="device.online ? 'light' : 'plain'" size="large">
           <el-icon class="status-icon">
-            <CircleCheckFilled v-if="light.online" />
+            <CircleCheckFilled v-if="device.online" />
             <CircleCloseFilled v-else />
           </el-icon>
-          {{ light.online ? "在线" : "离线" }}
+          {{ device.online ? "在线" : "离线" }}
         </el-tag>
       </div>
     </el-menu>
@@ -38,44 +38,33 @@
 </template>
 
 <script setup lang="ts">
+
 import { defineProps, defineEmits } from "vue"
 import {
   CircleCheckFilled,
   CircleCloseFilled,
   Back
 } from "@element-plus/icons-vue"
+import type { Device } from "@/util/Api"
+import { useRoute, useRouter } from "vue-router"
 
-// 定义属性
-const props = defineProps({
-  light: {
-    type: Object,
-    required: true
-  },
+const router = useRouter()
+
+const props = defineProps<{
+  device: Device,
   menuItems: {
-    type: Array,
-    required: true,
-    default: () => [
-      { index: "status", label: "当前状态" },
-      { index: "history", label: "历史数据" },
-      { index: "detection", label: "检测结果" },
-      { index: "monitor", label: "实时监控" },
-      { index: "chat", label: "实时对话" }
-    ]
-  }
-})
+    index: string;
+    label: string;
+  }[],
+  handleSelect: (index: string) => void
+}>()
 
-// 定义事件
-const emit = defineEmits(["select", "back"])
-
-// 处理菜单项选择
-const handleSelect = (index: string) => {
-  emit("select", index)
-}
 
 // 处理返回按钮点击
 const handleBack = () => {
-  emit("back")
+  router.back()
 }
+
 </script>
 
 <style scoped>

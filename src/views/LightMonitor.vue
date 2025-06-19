@@ -114,7 +114,7 @@ import {
 import { drawBoundingBoxes } from '@/util/DrawBoundingBoxes'
 
 const props = defineProps<{
-  light: Device
+  device: Device
 }>()
 
 const route = useRoute()

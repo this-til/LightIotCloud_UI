@@ -85,11 +85,10 @@ import { nextTick } from "vue"
 import { drawBoundingBoxes } from '@/util/DrawBoundingBoxes'
 
 const props = defineProps<{
-  light: Device
+  device: Device
 }>()
 
 const route = useRoute()
-const lightId = Number(route.query.id)
 const keyframes = ref<DetectionKeyframe[]>([])
 const timeRange = ref<[Date, Date] | null>(null)
 const loading = ref(false)
@@ -146,10 +145,10 @@ const handleTimeRangeChange = async () => {
     }
 
     // 获取总帧数
-    totalCount.value = await getDetectionKeyframeCount(lightId, timeRangeParam)
+    totalCount.value = await getDetectionKeyframeCount(props.device.id, timeRangeParam)
 
     // 获取分页数据
-    const data = await getDetectionKeyframes(lightId, {
+    const data = await getDetectionKeyframes(props.device.id, {
       current: currentPage.value,
       size: pageSize.value,
       total: totalCount.value
@@ -189,7 +188,7 @@ const startRealtimeSubscription = () => {
 
   unsubscribe = subscriptionLightDetectionReportEvent(
     client,
-    lightId,
+    props.device.id,
     {
       next: async (keyframe: DetectionKeyframe) => {
         keyframes.value.unshift(keyframe)
