@@ -85,6 +85,7 @@ import { ref, onMounted, onUnmounted } from "vue"
 import { useRouter } from "vue-router"
 import * as echarts from "echarts"
 import { getLightHistoryData } from "@/util/Api"
+import { formatDateTime } from '@/util/TimeFormat'
 
 const sciFiTheme = {
     // 整体背景色（你外层卡片已是深色，可设 transparent）
@@ -218,7 +219,7 @@ const initCharts = () => {
 
 // Update charts with data
 const updateCharts = (data) => {
-    const times = data.map(item => new Date(item.time).toLocaleString())
+    const times = data.map(item => formatDateTime(item.time, 'short'))
 
     const updateChart = (chart, data, name) => {
         if (!chart) return
@@ -239,8 +240,7 @@ const updateCharts = (data) => {
                     rotate: 0,
                     interval: Math.floor(times.length / 10),
                     formatter: (value) => {
-                        const date = new Date(value)
-                        return `${date.getMonth() + 1}/${date.getDate()} ${date.getHours()}:${date.getMinutes().toString().padStart(2, '0')}`
+                        return formatDateTime(value, 'chart')
                     }
                 }
             },

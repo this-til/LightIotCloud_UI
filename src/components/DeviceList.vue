@@ -2,9 +2,20 @@
   <div class="device-list-container">
     <!-- ========== 顶部 Header ========== -->
     <div class="header card-like">
-      <!-- 左：标题 + 统计 -->
+      <!-- 左：标题 -->
       <div class="header-left">
         <h1 class="title">{{ props.title }}</h1>
+      </div>
+      <!-- 右：搜索 + 筛选 + 统计 -->
+      <div class="header-right">
+        <div class="search-controls">
+          <el-input v-model="searchQuery" placeholder="搜索设备..." prefix-icon="Search" clearable class="search-input" />
+          <el-select v-model="statusFilter" placeholder="筛选状态" clearable class="filter-select">
+            <el-option label="全部" value="" />
+            <el-option label="在线" value="online" />
+            <el-option label="离线" value="offline" />
+          </el-select>
+        </div>
         <div class="stats">
           <div class="stat-item">
             <div class="stat-title">总设备数</div>
@@ -20,19 +31,10 @@
           </div>
         </div>
       </div>
-      <!-- 右：搜索 + 筛选 -->
-      <div class="header-right">
-        <el-input v-model="searchQuery" placeholder="搜索设备..." prefix-icon="Search" clearable class="search-input" />
-        <el-select v-model="statusFilter" placeholder="筛选状态" clearable class="filter-select">
-          <el-option label="全部" value="" />
-          <el-option label="在线" value="online" />
-          <el-option label="离线" value="offline" />
-        </el-select>
-      </div>
     </div>
 
     <div class="table-container card-like">
-      <el-table :data="paginatedDeviceList" stripe highlight-current-row class="device-table" height="100%">
+      <el-table :data="paginatedDeviceList" stripe :highlight-current-row="false" class="device-table" height="100%">
         <el-table-column prop="id" label="设备编号" width="200">
           <template #default="{ row }">
             <div class="device-id">
@@ -50,8 +52,8 @@
           <template #default="{ row }">
             <el-tag :type="row.online ? 'success' : 'danger'" :effect="row.online ? 'light' : 'plain'">
               <el-icon class="status-icon">
-                <CircleCheckFilled v-if="row.online === 'online'" />
-                <CircleCloseFilled v-else />
+                <Connection v-if="row.online" />
+                <SwitchButton v-else />
               </el-icon>
               {{ row.online ? "在线" : "离线" }}
             </el-tag>
@@ -71,7 +73,7 @@
 
         <el-table-column label="操作" width="150">
           <template #default="{ row }">
-            <el-button type="primary" size="small" @click.stop="props.viewDetails(row)" :icon="View">
+            <el-button type="primary" size="small" @click.stop="props.viewDetails(row)" :icon="Operation">
               查看详情
             </el-button>
           </template>
@@ -92,12 +94,13 @@ import { ref, computed, onMounted } from "vue"
 import { ElMessage } from "element-plus"
 import {
   Monitor,
-  CircleCheckFilled,
-  CircleCloseFilled,
+  Connection,
+  SwitchButton,
   Clock,
-  View,
+  Operation,
   Search
 } from "@element-plus/icons-vue"
+import { formatDateTime } from '@/util/TimeFormat'
 
 const props = defineProps({
   title: String,
@@ -148,13 +151,7 @@ const paginatedDeviceList = computed(() => {
 })
 
 const formatTime = (date) => {
-  return date.toLocaleString("zh-CN", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit"
-  })
+  return formatDateTime(date, 'datetime')
 }
 
 const handleSizeChange = (val) => {
@@ -194,26 +191,32 @@ const handleCurrentChange = (val) => {
 /* ===== Header 布局 ===== */
 .header {
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: auto 1fr;
   align-items: center;
-  padding: 18px 24px;
-  gap: 24px;
+  padding: 12px 20px;
+  gap: 20px;
 }
 
 .header-left {
   display: flex;
   align-items: center;
-  gap: 24px;
 }
 
 .header-right {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  justify-content: flex-end;
+}
+
+.search-controls {
   display: flex;
   align-items: center;
   gap: 16px;
 }
 
 .title {
-  font-size: 24px;
+  font-size: 20px;
   font-weight: 700;
   color: #00ffff;
   margin: 0;
@@ -223,15 +226,15 @@ const handleCurrentChange = (val) => {
 .stats {
   display: grid;
   grid-auto-flow: column;
-  grid-auto-columns: minmax(120px, 140px);
-  gap: 16px;
+  grid-auto-columns: minmax(100px, 120px);
+  gap: 12px;
 }
 
 .stat-item {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
-  padding: 8px 14px;
+  padding: 6px 12px;
   background: rgba(0, 255, 234, 0.12);
   border: 1px solid rgba(0, 255, 234, 0.6);
   border-radius: 6px;
@@ -240,10 +243,11 @@ const handleCurrentChange = (val) => {
     0 0 8px rgba(0, 255, 234, 0.4),
     inset 0 0 4px rgba(0, 255, 234, 0.2);
   transition: transform .2s, box-shadow .2s;
+  gap: 8px;
 }
 
 .stat-item:hover {
-  transform: translateY(-2px);
+  transform: translateY(-1px);
   box-shadow:
     0 0 12px rgba(0, 255, 234, 0.6),
     inset 0 0 6px rgba(0, 255, 234, 0.3);
@@ -252,17 +256,19 @@ const handleCurrentChange = (val) => {
 .stat-title {
   font-size: 12px;
   color: #b2fbff;
-  margin-bottom: 4px;
   text-shadow: 0 0 6px rgba(0, 255, 234, .3);
+  white-space: nowrap;
 }
 
 .stat-value {
-  font-size: 24px;
+  font-size: 18px;
   font-weight: 800;
   background: linear-gradient(90deg, #00ffff 0%, #00b4ff 100%);
   background-clip: text;
   -webkit-text-fill-color: transparent;
   text-shadow: 0 0 8px rgba(0, 255, 234, .5);
+  min-width: 24px;
+  text-align: right;
 }
 
 /* ===== 搜索框 & 下拉外壳 ===== */
@@ -280,7 +286,8 @@ const handleCurrentChange = (val) => {
 }
 
 .filter-select {
-  min-width: 140px;
+  min-width: 70px;
+  width: 120px !important;
 }
 
 /* 额外约束 */
@@ -381,17 +388,42 @@ const handleCurrentChange = (val) => {
   border-bottom: 1px solid rgba(0, 255, 234, 0.12) !important;
 }
 
+/* 表格行的hover状态 */
 .device-table :deep(.el-table__row:hover),
-.device-table :deep(.el-table__row--current) {
+.device-table :deep(.el-table__row:hover > td) {
   background: rgba(0, 255, 234, 0.08) !important;
   /* 8% 霓虹青遮罩 */
 }
 
-/* 如果 Element Plus 版本对 <td> 单独做了背景，也一起覆盖 */
-.device-table :deep(.el-table__row:hover > td),
+/* 表格行的当前选中状态 */
+.device-table :deep(.el-table__row--current),
 .device-table :deep(.el-table__row--current > td) {
+  background: rgba(0, 255, 234, 0.12) !important;
+  /* 稍微更亮的选中状态 */
+}
+
+/* 强制覆盖Element Plus的默认样式，防止白色背景 */
+.device-table :deep(.el-table__row) {
+  background: rgba(0, 0, 0, .08) !important;
+}
+
+.device-table :deep(.el-table__row) td {
   background: transparent !important;
-  /* 保持一致 */
+}
+
+/* 处理focus状态，避免白色遮罩 */
+.device-table :deep(.el-table__row:focus),
+.device-table :deep(.el-table__row:focus > td),
+.device-table :deep(.el-table__row:focus-within),
+.device-table :deep(.el-table__row:focus-within > td) {
+  background: rgba(0, 255, 234, 0.08) !important;
+  outline: none !important;
+}
+
+/* 处理active状态 */
+.device-table :deep(.el-table__row:active),
+.device-table :deep(.el-table__row:active > td) {
+  background: rgba(0, 255, 234, 0.15) !important;
 }
 
 .pagination {
@@ -399,7 +431,7 @@ const handleCurrentChange = (val) => {
   gap: 16px;
   /* 各子块拉开一点距离 */
   color: #8fe8ff;
-  /* “Total …” 文字 */
+  /* "Total …" 文字 */
   font-weight: 500;
 }
 
@@ -482,6 +514,94 @@ const handleCurrentChange = (val) => {
   /* 同普通行 */
   color: #e0ffff !important;
   /* 文字保持亮青白 */
+}
+
+/* 修复可能的白色背景问题 */
+.device-table :deep(.el-table__body-wrapper),
+.device-table :deep(.el-table__body),
+.device-table :deep(.el-table__body tbody) {
+  background: transparent !important;
+}
+
+/* 强制覆盖所有可能的白色背景 */
+.device-table :deep(.el-table__row--striped:hover),
+.device-table :deep(.el-table__row--striped:hover > td) {
+  background: rgba(0, 255, 234, 0.08) !important;
+}
+
+.device-table :deep(.el-table__row--striped.el-table__row--current),
+.device-table :deep(.el-table__row--striped.el-table__row--current > td) {
+  background: rgba(0, 255, 234, 0.12) !important;
+}
+
+/* 清除表格点击后的选中效果 */
+.device-table :deep(.el-table__row.el-table__row--current) {
+  background: rgba(0, 255, 234, 0.12) !important;
+}
+
+/* 防止点击后的focus导致的白色背景 */
+.device-table :deep(.el-table__body tr) {
+  background: transparent !important;
+}
+
+/* ===== 状态图标科技风格 ===== */
+.status-icon {
+  margin-right: 6px;
+  animation: pulse-glow 2s infinite ease-in-out;
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(1.05);
+  }
+}
+
+/* 在线状态特殊效果 */
+.device-table :deep(.el-tag--success .status-icon) {
+  color: #00ff88 !important;
+  filter: drop-shadow(0 0 4px rgba(0, 255, 136, 0.6));
+}
+
+/* 离线状态特殊效果 */
+.device-table :deep(.el-tag--danger .status-icon) {
+  color: #ff4757 !important;
+  filter: drop-shadow(0 0 4px rgba(255, 71, 87, 0.6));
+  animation: none;
+}
+
+/* ===== 状态图标科技风格 ===== */
+.status-icon {
+  margin-right: 6px;
+  animation: pulse-glow 2s infinite ease-in-out;
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(1.05);
+  }
+}
+
+/* 在线状态特殊效果 */
+.device-table :deep(.el-tag--success .status-icon) {
+  color: #00ff88 !important;
+  filter: drop-shadow(0 0 4px rgba(0, 255, 136, 0.6));
+}
+
+/* 离线状态特殊效果 */
+.device-table :deep(.el-tag--danger .status-icon) {
+  color: #ff4757 !important;
+  filter: drop-shadow(0 0 4px rgba(255, 71, 87, 0.6));
+  animation: none;
 }
 </style>
 

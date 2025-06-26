@@ -17,7 +17,7 @@
         <template v-if="keyframes.length > 0">
           <el-card v-for="keyframe in keyframes" :key="keyframe.id" class="detection-card">
             <div class="detection-header">
-              <span class="detection-time">{{ new Date(keyframe.time).toLocaleString() }}</span>
+              <span class="detection-time">{{ formatDateTime(keyframe.time) }}</span>
             </div>
             <div class="detection-content">
 
@@ -59,6 +59,7 @@ import { Picture } from "@element-plus/icons-vue"
 import { getColorPreset } from "@/util/ColorPreset"
 import { nextTick } from "vue"
 import { drawBoundingBoxes } from '@/util/DrawBoundingBoxes'
+import { formatDateTime } from '@/util/TimeFormat'
 
 const props = defineProps({
   device: Object
