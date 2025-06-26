@@ -1,0 +1,91 @@
+/* skin-sci-fi.css */
+
+/* —— ① 整体外层皮肤容器 —— */
+#skin-wrapper {
+  position: fixed;
+  inset: 0;
+  background: #0a0f1e;
+  overflow: auto;
+}
+
+#skin-wrapper::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background-image: radial-gradient(circle, #00ffea 1px, transparent 1px);
+  background-size: 60px 60px;
+  opacity: .05;
+  animation: drift 120s linear infinite;
+}
+
+@keyframes drift {
+  to {
+    background-position: 200px 180px;
+  }
+}
+
+/* —— ② 全局半透明深色卡片/菜单/表格 —— */
+/*   注意：不要把 :root 放进这里，否则会重置所有全局变量 */
+.el-card,
+.el-menu,
+.el-table,
+.el-dialog,
+.content-wrapper {
+  /* 你改成真正页面内容的最外层类名 */
+  background: rgba(0, 10, 20, .9) !important;
+  border-color: #00ffea !important;
+}
+
+/* —— ③ 全局文字和按钮霓虹高亮 —— */
+body {
+  color: #8fe8ff;
+  /* 普通文字 */
+}
+
+.el-button--primary {
+  background: #00ffea;
+  color: #0a0f1e;
+  box-shadow: 0 0 6px #00ffea !important;
+}
+
+.el-button--primary:hover {
+  filter: brightness(1.2);
+  box-shadow: 0 0 12px #00ffea !important;
+}
+
+#skin-wrapper .common-layout {
+  background: transparent !important;
+}
+
+#skin-wrapper .common-header {
+  background: rgba(0, 10, 20, .95) !important;
+  border: 2px solid #00ffea !important;
+  box-shadow: 0 0 8px #00ffea !important;
+}
+
+/* 再覆写侧边栏、卡片、表格等 */
+#skin-wrapper .common-container,
+#skin-wrapper .sidebar,
+#skin-wrapper .el-card,
+#skin-wrapper .el-table,
+#skin-wrapper .el-menu,
+#skin-wrapper .entity-wrapper {
+  background: rgba(0, 10, 20, .9) !important;
+  border-color: #00ffea !important;
+}
+
+/* 提亮按钮和文字 */
+#skin-wrapper body,
+#skin-wrapper .title,
+#skin-wrapper .el-menu-item,
+#skin-wrapper .el-statistic__title {
+  color: #8fe8ff !important;
+}
+
+#skin-wrapper .el-statistic__content,
+#skin-wrapper .el-button--primary {
+  color: #0a0f1e !important;
+  background: #00ffea !important;
+  box-shadow: 0 0 6px #00ffea !important;
+}
