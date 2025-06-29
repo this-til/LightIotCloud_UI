@@ -20,7 +20,7 @@ const menuItems = ref([
     { index: "history", label: "历史数据" },
     { index: "detection", label: "检测结果" },
     { index: "monitor", label: "实时监控" },
-    { index: "chat", label: "实时对话" }
+    //{ index: "chat", label: "实时对话" }
 ])
 
 onMounted(async () => {

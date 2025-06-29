@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from "vue-router"
 import Login from "../views/Login.vue"
 import NotFound from "../views/NotFound.vue"
 import Main from "../views/Main.vue"
+import Dashboard from "../views/Dashboard.vue"
 import Light from "../views/Light.vue"
 import Car from "../views/Car.vue"
 import LightContent from "../views/LightContent.vue"
@@ -27,6 +28,11 @@ const router = createRouter({
             path: "/main",
             component: Main,
             children: [
+                {
+                    path: "/main",
+                    name: "dashboard",
+                    component: Dashboard
+                },
                 {
                     path: "/deviceList/:type",
                     component: DeviceListPlate,

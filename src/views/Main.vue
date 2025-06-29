@@ -1,10 +1,10 @@
 ﻿<template>
   <div class="detection-container">
-    <!-- 粒子效果，只在非监控页渲染，并带上 particles 类 -->
-    <vue-particles id="tsparticles" class="particles" v-if="route.path !== '/light/monitor'" :options="particlesOptions"
+    <!-- 粒子效果，在所有页面渲染，并带上 particles 类 -->
+    <vue-particles id="tsparticles" class="particles" :options="particlesOptions"
       :class="{ dim: !isBright }" />
-    <!-- 全屏旋转背景层（指针穿透），监控页不显示，且会根据 isBright 亮度渐变 -->
-    <div class="global-map" v-if="route.path !== '/light/monitor'" :class="{ dim: !isBright }">
+    <!-- 全屏旋转背景层（指针穿透），在所有页面显示，且会根据 isBright 亮度渐变 -->
+    <div class="global-map" :class="{ dim: !isBright }">
       <div class="map1"></div>
       <div class="map2"></div>
       <div class="map3"></div>
@@ -15,18 +15,25 @@
       <el-header height="70px" class="common-header">
         <div class="header-content">
           <div class="button-group">
-            <!-- 三个按钮 -->
+            <!-- 四个按钮 -->
+            <el-button type="text" @click="onMenuClick('main')" class="menu-btn">
+              <span>主界面</span>
+<!--              <el-badge :value="0" class="badge" />-->
+            </el-button>
             <el-button type="text" @click="onMenuClick('light')" class="menu-btn">
-              <span>智能灯杆</span><el-badge :value="12" class="badge" />
+              <span>智能灯杆</span>
+<!--              <el-badge :value="0" class="badge" />-->
             </el-button>
             <el-button type="text" @click="onMenuClick('car')" class="menu-btn">
-              <span>巡检小车</span><el-badge :value="8" class="badge" />
+              <span>巡检小车</span>
+<!--              <el-badge :value="0" class="badge" />-->
             </el-button>
             <el-button type="text" @click="onMenuClick('uav')" class="menu-btn">
-              <span>无人机</span><el-badge :value="5" class="badge" />
+              <span>无人机</span>
+<!--              <el-badge :value="0" class="badge" />-->
             </el-button>
           </div>
-          <h1 class="title">分布式数据采集服务系统</h1>
+          <h1 class="title">智慧城市感算智协一体化照明系统</h1>
         </div>
       </el-header>
 
@@ -38,7 +45,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, } from 'vue'
+import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import router from '@/router'
 import {
@@ -121,18 +128,33 @@ const particlesOptions = {
 }
 
 const route = useRoute()
-const isBright = ref(true)  // 只在点击菜单时才变暗
+const isBright = ref(true)  // 控制背景亮度
+
+// 监听路由变化，主界面保持亮度，其他页面暗化
+watch(() => route.path, (newPath) => {
+  if (newPath === '/main') {
+    isBright.value = true
+  } else {
+    isBright.value = false
+  }
+}, { immediate: true })
 
 function onMenuClick(type) {
-  isBright.value = false  // 点击菜单时触发淡下
   switch (type) {
+    case 'main':
+      isBright.value = true  // 主界面保持亮度
+      router.push({ path: '/main' })
+      break
     case 'light':
+      isBright.value = false  // 其他页面触发暗化
       router.push({ path: '/deviceList/LIGHT' })
       break
     case 'car':
+      isBright.value = false  // 其他页面触发暗化
       router.push({ path: '/deviceList/CAR' })
       break
     case 'uav':
+      isBright.value = false  // 其他页面触发暗化
       router.push({ path: '/deviceList/UAV' })
       break
   }

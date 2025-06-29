@@ -96,9 +96,14 @@
         </div>
       </div>
     </div>
-    <div class="model-view">
-      <CarScene ref="sceneRef" />
-      <!-- 之类 -->
+    <div class="video-container">
+      <video ref="videoRef" class="video-player" autoplay muted crossorigin="anonymous"></video>
+      <div v-if="!isPlaying" class="video-placeholder">
+        <el-icon class="placeholder-icon">
+          <VideoCamera />
+        </el-icon>
+        <span>视频加载中...</span>
+      </div>
     </div>
   </div>
 </template>
@@ -113,17 +118,25 @@ import {
   CaretRight,
   RefreshLeft,
   RefreshRight,
-  VideoPause
+  VideoPause,
+  VideoCamera
 } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { getCarById, operationCar } from '@/util/Api'
-import CarScene from '@/components/CarScene.vue'
+import Hls from 'hls.js'
 
 const route = useRoute()
 const car = ref(null)
-const sceneRef = ref(null)
+const videoRef = ref(null)
+const isPlaying = ref(false)
 let operationTimer = null
 let currentOp = null
+
+// 视频流相关
+const streamUrl = ref(`http://192.168.117.34:8888/orbbec_cam/index.m3u8`)
+const retryPause = 2000 // 重试间隔
+let hls = null
+let retryTimeout = null
 
 // 远程控制请求
 async function controlCar(op) {
@@ -146,38 +159,16 @@ async function controlCar(op) {
   }
 }
 
-// 开始持续控制：同时控制 API 与 3D 场景
+// 开始持续控制
 function startContinuousControl(op) {
   stopContinuousControl()
   currentOp = op
   controlCar(op)
-  const keyMap = {
-    translationAdvance: 'KeyW',
-    translationRetreat: 'KeyS',
-    translationLeft: 'KeyA',
-    translationRight: 'KeyD',
-    angularLeft: 'KeyQ',
-    angularRight: 'KeyE'
-  }
-  const code = keyMap[op]
-  sceneRef.value?.pressKey(code)
   operationTimer = setInterval(() => controlCar(op), 250)
 }
 
-// 停止持续控制：清除定时器以及释放 3D 场景按键
+// 停止持续控制
 function stopContinuousControl() {
-  if (currentOp) {
-    const keyMap = {
-      translationAdvance: 'KeyW',
-      translationRetreat: 'KeyS',
-      translationLeft: 'KeyA',
-      translationRight: 'KeyD',
-      angularLeft: 'KeyQ',
-      angularRight: 'KeyE'
-    }
-    const code = keyMap[currentOp]
-    sceneRef.value?.releaseKey(code)
-  }
   clearInterval(operationTimer)
   operationTimer = null
   currentOp = null
@@ -186,6 +177,99 @@ function stopContinuousControl() {
 // 单次停止按钮
 async function handleOperation(op) {
   await controlCar(op)
+}
+
+// 视频加载相关函数
+const isIOS = () => {
+  return /iPad|iPhone|iPod/.test(navigator.platform) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+}
+
+const loadStream = () => {
+  if (!videoRef.value) return
+
+  // 清除之前的重试定时器
+  if (retryTimeout) {
+    clearTimeout(retryTimeout)
+    retryTimeout = null
+  }
+
+  // 清除之前的HLS实例
+  if (hls) {
+    hls.destroy()
+    hls = null
+  }
+
+  try {
+    if (!streamUrl.value) {
+      throw new Error('视频流URL不可用')
+    }
+
+    // Add CORS attribute to video element
+    videoRef.value.crossOrigin = 'anonymous'
+
+    // 优先使用hls.js
+    if (Hls.isSupported() && !isIOS()) {
+      hls = new Hls({
+        maxLiveSyncPlaybackRate: 1.5,
+        liveSyncDuration: 1,   // seconds
+        liveMaxLatencyDuration: 2, // seconds
+        debug: false,
+      })
+
+      hls.on(Hls.Events.ERROR, (event, data) => {
+        console.error('HLS错误:', data)
+        if (data.fatal) {
+          // 处理致命错误
+          let errorMessage = '视频流错误'
+
+          if (data.details === 'manifestIncompatibleCodecsError') {
+            errorMessage = '视频流使用了浏览器不支持的编解码器'
+          } else if (data.response && data.response.code === 404) {
+            errorMessage = '视频流未找到'
+          }
+
+          ElMessage.error(`${errorMessage}, ${retryPause / 1000}秒后重试`)
+
+          // 设置重试
+          retryTimeout = setTimeout(() => {
+            loadStream()
+          }, retryPause)
+        }
+      })
+
+      hls.on(Hls.Events.MEDIA_ATTACHED, () => {
+        hls.loadSource(streamUrl.value)
+      })
+
+      hls.on(Hls.Events.MANIFEST_LOADED, () => {
+        isPlaying.value = true
+      })
+
+      hls.attachMedia(videoRef.value)
+
+    } else if (videoRef.value.canPlayType('application/vnd.apple.mpegurl')) {
+      // iOS设备使用原生HLS支持
+      videoRef.value.src = streamUrl.value
+      videoRef.value.addEventListener('loadedmetadata', () => {
+        if (videoRef.value) {
+          videoRef.value.play()
+        }
+        isPlaying.value = true
+      })
+    } else {
+      throw new Error('您的浏览器不支持视频播放')
+    }
+
+  } catch (error) {
+    console.error('视频流初始化失败:', error)
+    ElMessage.error('视频连接失败: ' + error.message)
+
+    // 设置重试
+    retryTimeout = setTimeout(() => {
+      loadStream()
+    }, retryPause)
+  }
 }
 
 // 键盘事件处理
@@ -222,12 +306,31 @@ onMounted(async () => {
   if (id) car.value = await getCarById(id)
   window.addEventListener('keydown', handleKeyDown)
   window.addEventListener('keyup', handleKeyUp)
+  
+  // 加载视频流
+  loadStream()
 })
 
 onUnmounted(() => {
   window.removeEventListener('keydown', handleKeyDown)
   window.removeEventListener('keyup', handleKeyUp)
   stopContinuousControl()
+  
+  // 清理重试定时器
+  if (retryTimeout) {
+    clearTimeout(retryTimeout)
+  }
+
+  // 清理HLS实例
+  if (hls) {
+    hls.destroy()
+  }
+
+  // 暂停视频
+  if (videoRef.value) {
+    videoRef.value.pause()
+    videoRef.value.src = ''
+  }
 })
 </script>
 
@@ -254,20 +357,60 @@ onUnmounted(() => {
     inset 0 0 6px rgba(0, 255, 234, .25);
 }
 
-.model-view {
+.video-container {
   flex: 1 1 0;
   position: relative;
   overflow: hidden;
-  /* 视觉占位：暗蓝网格，可删 */
-  background:
-    radial-gradient(circle at center,
-      rgba(0, 255, 234, .12) 0%,
-      rgba(0, 255, 234, .02) 40%,
-      transparent 70%) center/120% 120%,
-    repeating-linear-gradient(rgba(0, 255, 234, .05) 0 1px, transparent 1px 60px),
-    repeating-linear-gradient(90deg, rgba(0, 255, 234, .05) 0 1px, transparent 1px 60px),
-    #070c16;
+  background: #000;
   border-left: 1px solid #06f6f1;
+  border-radius: 0 18px 18px 0;
+  box-shadow: 0 0 14px rgba(0, 255, 234, .25);
+}
+
+.video-player {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  position: relative;
+  z-index: 0;
+}
+
+.video-placeholder {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.9);
+  color: #00ffea;
+  z-index: 2;
+}
+
+.placeholder-icon {
+  font-size: 64px;
+  margin-bottom: 24px;
+  color: #00ffea;
+  text-shadow: 0 0 10px #00ffea;
+  animation: placeholder-pulse 2s infinite ease-in-out;
+}
+
+@keyframes placeholder-pulse {
+  0% {
+    transform: scale(1);
+    opacity: 0.6;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0.6;
+  }
 }
 
 /* ------- 若面板高度超屏，可滚动但隐藏滚动条 ------- */
@@ -385,10 +528,15 @@ onUnmounted(() => {
 }
 
 /* ================= 停止按钮 ================= */
+.control-section:has(.stop-btn) {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
 .stop-btn {
   width: 200px;
   height: 66px;
-  margin: 0 auto;
   color: #fff;
   background: rgba(245, 108, 108, 0.18);
   border: 1px solid #f56c6c;

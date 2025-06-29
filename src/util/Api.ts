@@ -1592,3 +1592,99 @@ export async function broadcastStopLight(
 
     return response.data?.self?.getDeviceById?.asLight?.broadcastStop as Result
 }
+
+export const SET_UAV_BASE_STATION_COVER_MUTATION = `
+mutation setUavBaseStationCover($lightId: ID!, $open: Boolean!) {
+    self {
+        getDeviceById(id: $lightId, deviceType: LIGHT) {
+            asLight {
+                setUavBaseStationCover(open: $open) {
+                    resultType
+                }
+            }
+        }
+    }
+}
+`
+
+export async function setUavBaseStationCover(
+    lightId: ID,
+    open: boolean
+): Promise<ResultType> {
+    const response = await postGql<
+        {
+            self: {
+                getDeviceById: {
+                    asLight: {
+                        setUavBaseStationCover: {
+                            resultType: ResultType
+                        }
+                    }
+                }
+            }
+        }
+    >(
+        SET_UAV_BASE_STATION_COVER_MUTATION,
+        { lightId, open }
+    )
+
+    return response?.data?.self?.getDeviceById?.asLight?.setUavBaseStationCover?.resultType as ResultType
+}
+
+export const SET_UAV_BASE_STATION_CLAMP_MUTATION = `
+mutation setUavBaseStationClamp($lightId: ID!, $open: Boolean!) {
+    self {
+        getDeviceById(id: $lightId, deviceType: LIGHT) {
+            asLight {
+                setUavBaseStationClamp(open: $open) {
+                    resultType
+                }
+            }
+        }
+    }
+}
+`
+
+export async function setUavBaseStationClamp(
+    lightId: ID,
+    open: boolean
+): Promise<ResultType> {
+    const response = await postGql<
+        {
+            self: {
+                getDeviceById: {
+                    asLight: {
+                        setUavBaseStationClamp: {
+                            resultType: ResultType
+                        }
+                    }
+                }
+            }
+        }
+    >(
+        SET_UAV_BASE_STATION_CLAMP_MUTATION,
+        { lightId, open }
+    )
+
+    return response?.data?.self?.getDeviceById?.asLight?.setUavBaseStationClamp?.resultType as ResultType
+}
+
+export const DISPATCH_MUTATION = `
+mutation dispatch {
+    dispatch {
+        resultType
+    }
+}
+`
+
+export async function dispatch(): Promise<ResultType> {
+    const response = await postGql<
+        {
+            dispatch: Result
+        }
+    >(
+        DISPATCH_MUTATION
+    )
+
+    return response?.data?.dispatch?.resultType || ResultType.ERROR
+}

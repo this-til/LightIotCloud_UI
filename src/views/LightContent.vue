@@ -38,7 +38,29 @@
               <el-switch v-model="rollingDoorOpen" :disabled="!device.online" @change="handleRollingDoorChange"
                 active-text="开启" inactive-text="关闭" class="custom-switch" />
             </div>
+
+            <!-- 无人机基站盖板 -->
+            <div class="control-row">
+              <div class="control-label-wrapper">
+                <span class="control-label">基站盖板</span>
+                <span class="control-desc">控制无人机基站盖板开闭</span>
+              </div>
+              <el-switch v-model="uavBaseStationCoverOpen" :disabled="!device.online" @change="handleUavBaseStationCoverChange"
+                active-text="开启" inactive-text="关闭" class="custom-switch" />
+            </div>
+
+            <!-- 无人机基站夹具 -->
+            <div class="control-row">
+              <div class="control-label-wrapper">
+                <span class="control-label">基站夹具</span>
+                <span class="control-desc">控制无人机基站夹具开闭</span>
+              </div>
+              <el-switch v-model="uavBaseStationClampOpen" :disabled="!device.online" @change="handleUavBaseStationClampChange"
+                active-text="开启" inactive-text="关闭" class="custom-switch" />
+            </div>
+
           </div>
+
         </div>
       </div>
     </div>
@@ -178,7 +200,8 @@
 import { computed, onMounted, onUnmounted, ref } from "vue"
 import {
   getDefWebSocketClient, subscriptionLightDataReportEventEvent, createDefWebSocketClient,
-  subscriptionLightStateReportEvent, setLightGear, setAutomaticGear, setRollingDoor, SUCCESSFUL
+  subscriptionLightStateReportEvent, setLightGear, setAutomaticGear, setRollingDoor, 
+  setUavBaseStationCover, setUavBaseStationClamp, SUCCESSFUL
 } from "@/util/Api"
 import { useRoute } from "vue-router"
 import { Monitor, WindPower, Compass, Sunny, Lightning, Connection } from "@element-plus/icons-vue"
@@ -194,8 +217,10 @@ const route = useRoute()
 const lightData = ref({})
 const lightState = ref({})
 const brightness = ref(50)
-const autoBrightness = ref(false)
+const autoBrightness = ref(true)
 const rollingDoorOpen = ref(false)
+const uavBaseStationCoverOpen = ref(false)
+const uavBaseStationClampOpen = ref(false)
 
 let unsubscriptionLightStateReportEvent = null
 let unsubscriptionLightDataReportEvent = null
@@ -331,6 +356,64 @@ const handleRollingDoorChange = async (value) => {
       type: "error",
       title: "设置失败",
       message: "设置卷帘门时发生错误",
+      duration: 2000
+    })
+  }
+}
+
+const handleUavBaseStationCoverChange = async (value) => {
+  try {
+    const result = await setUavBaseStationCover(Number(route.query.id), value)
+    if (result === SUCCESSFUL) {
+      ElNotification({
+        type: "success",
+        title: "设置成功",
+        message: `无人机基站盖板已${value ? "开启" : "关闭"}`,
+        duration: 2000
+      })
+    } else {
+      ElNotification({
+        type: "error",
+        title: "设置失败",
+        message: "无人机基站盖板设置失败，请重试",
+        duration: 2000
+      })
+    }
+  } catch (error) {
+    console.error("设置无人机基站盖板失败:", error)
+    ElNotification({
+      type: "error",
+      title: "设置失败",
+      message: "设置无人机基站盖板时发生错误",
+      duration: 2000
+    })
+  }
+}
+
+const handleUavBaseStationClampChange = async (value) => {
+  try {
+    const result = await setUavBaseStationClamp(Number(route.query.id), value)
+    if (result === SUCCESSFUL) {
+      ElNotification({
+        type: "success",
+        title: "设置成功",
+        message: `无人机基站夹具已${value ? "开启" : "关闭"}`,
+        duration: 2000
+      })
+    } else {
+      ElNotification({
+        type: "error",
+        title: "设置失败",
+        message: "无人机基站夹具设置失败，请重试",
+        duration: 2000
+      })
+    }
+  } catch (error) {
+    console.error("设置无人机基站夹具失败:", error)
+    ElNotification({
+      type: "error",
+      title: "设置失败",
+      message: "设置无人机基站夹具时发生错误",
       duration: 2000
     })
   }

@@ -52,6 +52,17 @@
                                 model }}</el-checkbox>
                         </el-checkbox-group>
                     </div>
+
+                    <!-- 火灾检测进度条 -->
+                    <div v-if="isFireModelActive" class="fire-detection-progress">
+                        <div class="progress-label">
+                            <span>火灾检测警报</span>
+                            <span class="progress-text">{{ fireProgress }}%</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill" :style="{ width: fireProgress + '%' }"></div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -81,7 +92,8 @@ import {
     getDefWebSocketClient,
     setSustainedDetection,
     closeSustainedDetection,
-    ptzControl
+    ptzControl,
+    dispatch
 } from '@/util/Api'
 import { drawBoundingBoxes } from '@/util/DrawBoundingBoxes'
 
@@ -96,7 +108,7 @@ const canvasRef = ref(null)
 let unsubscribeSustained = null
 const detections = ref([])
 
-const streamUrl = ref(`http://192.168.117.2:8888/hik_cam/index.m3u8`)
+const streamUrl = ref(`http://192.168.117.3:8888/hik_cam/index.m3u8`)
 
 // 添加模型选项和选择状态
 const modelOptions = Object.keys(colorPresetMap);
@@ -106,6 +118,178 @@ const selectedModels = ref([]);
 const ptzTimer = ref(null)
 const currentDirection = ref(null)
 
+// 火灾检测相关变量
+const fireProgress = ref(0) // 火灾检测进度 0-100
+const fireDetectionCount = ref(0) // 火灾检测计数
+const maxFireDetections = 10 // 触发警报所需的检测次数
+const progressDecayInterval = ref(null) // 进度衰减定时器
+const lastFireDetectionTime = ref(0) // 最后一次检测到火灾的时间
+const alertTriggered = ref(false) // 警报触发标志，确保单次选择只触发一次
+
+// 计算属性：是否激活火灾模型
+const isFireModelActive = computed(() => {
+    return selectedModels.value.includes('火灾')
+})
+
+// 火灾检测处理函数
+const handleFireDetection = (detectionResults) => {
+    if (!isFireModelActive.value) {
+        console.log('火灾模型未激活，当前选择的模型:', selectedModels.value)
+        return
+    }
+
+    console.log('火灾检测状态:', {
+        selectedModels: selectedModels.value,
+        detectionCount: detectionResults.length,
+        currentProgress: fireProgress.value,
+        alertTriggered: alertTriggered.value,
+        fireDetectionCount: fireDetectionCount.value
+    })
+
+        // 检查是否有火灾检测结果
+    // 根据ColorPreset.js中火灾模型的定义，检测项目包括：火、烟
+    const fireDetected = detectionResults.some(detection => 
+        detection.item && (
+            detection.item === '火' || 
+            detection.item === '烟' ||
+            detection.item.includes('火') || 
+            detection.item.includes('烟') ||
+            detection.item.toLowerCase().includes('fire') || 
+            detection.item.toLowerCase().includes('smoke') ||
+            detection.item.toLowerCase().includes('flame')
+        )
+    )
+
+    if (fireDetected) {
+        lastFireDetectionTime.value = Date.now()
+        fireDetectionCount.value++
+
+        // 更新进度条
+        fireProgress.value = Math.min((fireDetectionCount.value / maxFireDetections) * 100, 100)
+
+        // 检查是否达到触发条件，且未曾触发过警报
+        if (fireDetectionCount.value >= maxFireDetections && fireProgress.value >= 100 && !alertTriggered.value) {
+            triggerFireAlert()
+        }
+
+        // 重新启动衰减定时器
+        startProgressDecay()
+
+                // 可选：打印检测到的火灾项目用于调试
+        const fireItems = detectionResults
+            .filter(detection => 
+                detection.item && (
+                    detection.item === '火' || 
+                    detection.item === '烟' ||
+                    detection.item.includes('火') || 
+                    detection.item.includes('烟') ||
+                    detection.item.toLowerCase().includes('fire') || 
+                    detection.item.toLowerCase().includes('smoke') ||
+                    detection.item.toLowerCase().includes('flame')
+                )
+            )
+            .map(detection => detection.item)
+
+        if (fireItems.length > 0) {
+            console.log('检测到火灾项目:', fireItems, '置信度:',
+                detectionResults
+                    .filter(d => fireItems.includes(d.item))
+                    .map(d => d.probability)
+            )
+        }
+    }
+}
+
+// 启动进度衰减定时器
+const startProgressDecay = () => {
+    // 清除现有定时器
+    if (progressDecayInterval.value) {
+        clearInterval(progressDecayInterval.value)
+    }
+
+    // 每秒检查一次，如果超过3秒没有检测到火灾，开始衰减
+    progressDecayInterval.value = setInterval(() => {
+        const timeSinceLastDetection = Date.now() - lastFireDetectionTime.value
+
+        if (timeSinceLastDetection > 3000) { // 3秒无检测开始衰减
+            if (fireProgress.value > 0) {
+                fireDetectionCount.value = Math.max(0, fireDetectionCount.value - 1)
+                fireProgress.value = Math.max(0, (fireDetectionCount.value / maxFireDetections) * 100)
+                
+                // 当进度降到50%以下时，重置警报标志，允许重新触发
+                if (fireProgress.value < 50 && alertTriggered.value) {
+                    alertTriggered.value = false
+                    console.log('火灾检测进度下降，重置警报标志')
+                }
+            }
+
+            // 如果进度为0，停止定时器
+            if (fireProgress.value === 0) {
+                clearInterval(progressDecayInterval.value)
+                progressDecayInterval.value = null
+            }
+        }
+    }, 1000)
+}
+
+// 触发火灾警报
+const triggerFireAlert = async () => {
+    // 防止重复触发
+    if (fireProgress.value < 100 || alertTriggered.value) return
+
+    // 设置警报触发标志
+    alertTriggered.value = true
+
+    ElMessage({
+        message: '🔥 火灾警报！检测到持续火源，请立即处理！',
+        type: 'error',
+        duration: 10000,
+        showClose: true
+    })
+
+    // 调用调度函数
+    try {
+        const result = await dispatch()
+        if (result === 'SUCCESSFUL') {
+            console.log('调度通知发送成功')
+        } else {
+            console.error('调度通知发送失败:', result)
+            ElMessage.warning('警报调度失败，请手动联系相关人员')
+        }
+    } catch (error) {
+        console.error('调度通知发送异常:', error)
+        ElMessage.warning('警报调度异常，请手动联系相关人员')
+    }
+
+    // 这里可以添加更多的警报逻辑，如：
+    // - 发送通知到服务器
+    // - 触发声音警报
+    // - 记录警报日志
+    console.warn('🔥 火灾警报触发！时间:', new Date().toLocaleTimeString(), {
+        detectionCount: fireDetectionCount.value,
+        progress: fireProgress.value,
+        alertTriggered: alertTriggered.value
+    })
+
+    // 可以在这里调用自定义的警报处理函数
+    // handleCustomFireAlert()
+}
+
+// 重置火灾检测状态
+const resetFireDetection = () => {
+    fireProgress.value = 0
+    fireDetectionCount.value = 0
+    lastFireDetectionTime.value = 0
+    alertTriggered.value = false // 重置警报触发标志
+
+    if (progressDecayInterval.value) {
+        clearInterval(progressDecayInterval.value)
+        progressDecayInterval.value = null
+    }
+    
+    console.log('火灾检测状态已重置')
+}
+
 // 处理模型选择变化
 const handleModelChange = async (value) => {
     // 确保只能选择一个或全部关闭
@@ -114,6 +298,9 @@ const handleModelChange = async (value) => {
     } else {
         selectedModels.value = value
     }
+
+    // 重置火灾检测状态
+    resetFireDetection()
 
     const lightId = Number(route.query.id)
     if (!lightId) {
@@ -400,6 +587,10 @@ const subscribeToSustainedDetection = () => {
             next: (newDetections) => {
                 // 直接赋值给响应式对象
                 detections.value = newDetections
+
+                // 处理火灾检测
+                handleFireDetection(newDetections)
+
                 drawDetections()
             },
             error: (error) => {
@@ -428,7 +619,23 @@ onMounted(() => {
     }
 })
 
-onUnmounted(() => {
+onUnmounted(async () => {
+    // 退出页面时取消模型选择
+    if (selectedModels.value.length > 0) {
+        const lightId = Number(route.query.id)
+        if (lightId) {
+            try {
+                await closeSustainedDetection(lightId)
+                console.log('页面退出时已关闭持续检测')
+            } catch (error) {
+                console.error('页面退出时关闭持续检测失败:', error)
+            }
+        }
+    }
+
+    // 清理火灾检测定时器
+    resetFireDetection()
+
     // 清理重试定时器
     if (retryTimeout) {
         clearTimeout(retryTimeout)
@@ -604,6 +811,7 @@ window.addEventListener('resize', () => {
 /* ========== Detection 卡片&布局 ========= */
 .detection-container {
     padding: 20px;
+    background: transparent;
 }
 
 .time-range-selector {
@@ -675,7 +883,7 @@ window.addEventListener('resize', () => {
 
 /* ========== Monitor / PTZ 控制  ========= */
 .sci-fi .monitor-container {
-    background: rgba(0, 0, 0, .45);
+    background: transparent;
 }
 
 .sci-fi .control-panels {
@@ -775,7 +983,7 @@ window.addEventListener('resize', () => {
     display: flex;
     flex-direction: row;
     gap: 20px;
-    background-color: #f8fafc;
+    background-color: transparent;
 }
 
 .control-panels {
@@ -1005,7 +1213,7 @@ window.addEventListener('resize', () => {
     display: flex;
     flex-direction: row;
     gap: 20px;
-    background-color: #f8fafc;
+    background-color: transparent;
 }
 
 /* 模型选择区域样式 */
@@ -1066,5 +1274,113 @@ window.addEventListener('resize', () => {
     pointer-events: none;
     z-index: 1;
     /* 确保在视频之上 */
+}
+
+/* 火灾检测进度条样式 */
+.fire-detection-progress {
+    margin-top: 16px;
+    background: linear-gradient(145deg, #ffebee, #fce4ec);
+    padding: 12px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 87, 87, 0.3);
+    box-shadow: 0 2px 8px rgba(255, 87, 87, 0.15);
+}
+
+.progress-label {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    font-size: 13px;
+    color: #d32f2f;
+    font-weight: 600;
+}
+
+.progress-text {
+    font-family: 'Courier New', monospace;
+    color: #c62828;
+    font-weight: 700;
+}
+
+.progress-bar {
+    height: 10px;
+    background: rgba(255, 87, 87, 0.15);
+    border-radius: 5px;
+    overflow: hidden;
+    position: relative;
+    border: 1px solid rgba(255, 87, 87, 0.3);
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #ff5757 0%, #ff3030 50%, #ff0000 100%);
+    border-radius: 4px;
+    transition: width 0.3s ease;
+    position: relative;
+    box-shadow: 0 0 10px rgba(255, 87, 87, 0.6);
+}
+
+.progress-fill::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+    animation: progress-shine 2s infinite;
+}
+
+@keyframes progress-shine {
+    0% { left: -100%; }
+    100% { left: 100%; }
+}
+
+/* Sci-fi风格的火灾进度条 */
+.sci-fi .fire-detection-progress {
+    background: rgba(20, 25, 45, 0.95);
+    border: 1px solid rgba(255, 87, 87, 0.5);
+    box-shadow: 0 0 15px rgba(255, 87, 87, 0.3);
+}
+
+.sci-fi .progress-label {
+    color: #ff6b6b;
+    text-shadow: 0 0 5px rgba(255, 107, 107, 0.5);
+}
+
+.sci-fi .progress-text {
+    color: #ff4757;
+    text-shadow: 0 0 3px rgba(255, 71, 87, 0.7);
+}
+
+.sci-fi .progress-bar {
+    background: rgba(255, 87, 87, 0.15);
+    border: 1px solid rgba(255, 87, 87, 0.3);
+    box-shadow: 0 0 5px rgba(255, 87, 87, 0.2) inset;
+}
+
+.sci-fi .progress-fill {
+    background: linear-gradient(90deg,
+        rgba(255, 87, 87, 0.8) 0%,
+        rgba(255, 48, 48, 0.9) 50%,
+        rgba(255, 0, 0, 1) 100%
+    );
+    box-shadow:
+        0 0 10px rgba(255, 87, 87, 0.8),
+        0 0 20px rgba(255, 87, 87, 0.4);
+    animation: fire-pulse 1.5s ease-in-out infinite alternate;
+}
+
+@keyframes fire-pulse {
+    0% {
+        box-shadow:
+            0 0 10px rgba(255, 87, 87, 0.8),
+            0 0 20px rgba(255, 87, 87, 0.4);
+    }
+    100% {
+        box-shadow:
+            0 0 15px rgba(255, 87, 87, 1),
+            0 0 30px rgba(255, 87, 87, 0.6);
+    }
 }
 </style>

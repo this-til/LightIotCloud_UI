@@ -168,23 +168,34 @@ const startRealtimeSubscription = () => {
     props.device.id,
     {
       next: async (keyframe) => {
-        keyframes.value.unshift(keyframe)
-        if (keyframes.value.length > pageSize.value) {
-          keyframes.value.pop()
+        // 检查是否已存在相同ID的数据，避免重复
+        const existingIndex = keyframes.value.findIndex(k => k.id === keyframe.id)
+        if (existingIndex === -1) {
+          // 新数据插入到开头（按时间降序）
+          keyframes.value.unshift(keyframe)
+          
+          // 保持数据量在合理范围内
+          if (keyframes.value.length > pageSize.value * 2) {
+            keyframes.value = keyframes.value.slice(0, pageSize.value)
+          }
+          
+          totalCount.value++
+          
+          // 主动加载新图片
+          await getImageUrl(keyframe.id)
         }
-        totalCount.value++
-
-        // 主动加载新图片
-        await getImageUrl(keyframe.id)
       },
       error: (error) => {
         console.error("Detection subscription error:", error)
         ElMessage.error("实时更新连接错误")
-        realtimeEnabled.value = false
+        // 只在连接错误时自动关闭，不强制修改用户设置
+        if (realtimeEnabled.value) {
+          realtimeEnabled.value = false
+        }
       },
       complete: () => {
         console.log("Detection subscription completed")
-        realtimeEnabled.value = false
+        // 订阅完成时不强制关闭，保持用户设置
       }
     }
   )
@@ -194,6 +205,15 @@ const stopRealtimeSubscription = () => {
   if (unsubscribe) {
     unsubscribe()
     unsubscribe = null
+  }
+  
+  // 清空当前的实时数据
+  keyframes.value = []
+  totalCount.value = 0
+  
+  // 关闭实时更新后，自动加载历史数据
+  if (timeRange.value) {
+    handleTimeRangeChange()
   }
 }
 
@@ -375,13 +395,19 @@ window.addEventListener('resize', () => {
   })
 })
 
-onMounted(() => {
+onMounted(async () => {
   const end = new Date()
   const start = new Date()
   start.setTime(start.getTime() - 3600 * 1000 * 24)
   timeRange.value = [start, end]
-  handleTimeRangeChange()
-  startRealtimeSubscription()
+  
+  // 无论是否开启实时更新，都先加载历史数据
+  await handleTimeRangeChange()
+  
+  // 如果实时更新开启，则在加载历史数据后启动订阅
+  if (realtimeEnabled.value) {
+    startRealtimeSubscription()
+  }
 
   // 预加载图片
   keyframes.value.forEach(keyframe => {
