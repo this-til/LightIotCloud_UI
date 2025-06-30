@@ -34,6 +34,11 @@
             </el-button>
           </div>
           <h1 class="title">智慧城市感算智协一体化照明系统</h1>
+          <div class="right-actions">
+            <el-button type="text" @click="onLogout" class="logout-btn">
+              <span>登出</span>
+            </el-button>
+          </div>
         </div>
       </el-header>
 
@@ -171,6 +176,16 @@ function onMenuClick(type) {
   }
 }
 
+function onLogout() {
+  // 清除token和WebSocket连接
+  localStorage.removeItem('token')
+  if (getDefWebSocketClient()) {
+    getDefWebSocketClient().terminate()
+  }
+  // 跳转到登录页
+  router.push({ path: '/' })
+}
+
 let unsubscribeDeviceOnlineStateSwitchEvent = null
 
 onMounted(() => {
@@ -277,6 +292,30 @@ onUnmounted(() => {
   z-index: 1;
 }
 
+.right-actions {
+  margin-left: auto;
+}
+
+.logout-btn {
+  display: flex;
+  align-items: center;
+  border: 1px solid rgba(255, 102, 102, 0.6);
+  border-radius: 6px;
+  padding: 8px 14px;
+  box-shadow: inset 0 0 4px rgba(255, 102, 102, 0.2);
+  color: #ff8888;
+  transition:
+    border-color 0.3s,
+    box-shadow 0.3s,
+    color 0.3s;
+}
+
+.logout-btn:hover {
+  border-color: #ff6666;
+  box-shadow: 0 0 8px #ff6666;
+  color: #ff6666;
+}
+
 .main-content {
   flex: 1;
   padding: 24px;
@@ -364,7 +403,7 @@ onUnmounted(() => {
   /* 额外保底一下 */
 }
 
-/* 你想要的“亮”状态下各球的不透明度 */
+/* 你想要的"亮"状态下各球的不透明度 */
 .global-map .map1 {
   width: 45vw;
   height: 45vw;

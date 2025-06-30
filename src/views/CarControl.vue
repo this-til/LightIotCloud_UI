@@ -102,7 +102,13 @@
         <el-icon class="placeholder-icon">
           <VideoCamera />
         </el-icon>
-        <span>视频加载中...</span>
+        <span v-if="!videoError">视频加载中...</span>
+        <div v-else class="video-error-content">
+          <span class="error-message">设备摄像头未激活</span>
+          <el-button type="primary" @click="activateCamera" class="activate-btn">
+            点击激活设备摄像头
+          </el-button>
+        </div>
       </div>
     </div>
   </div>
@@ -129,6 +135,7 @@ const route = useRoute()
 const car = ref(null)
 const videoRef = ref(null)
 const isPlaying = ref(false)
+const videoError = ref(false)
 let operationTimer = null
 let currentOp = null
 
@@ -137,6 +144,7 @@ const streamUrl = ref(`http://192.168.117.34:8888/orbbec_cam/index.m3u8`)
 const retryPause = 2000 // 重试间隔
 let hls = null
 let retryTimeout = null
+let isFirstError = true // 跟踪是否是第一次错误
 
 // 远程控制请求
 async function controlCar(op) {
@@ -179,6 +187,13 @@ async function handleOperation(op) {
   await controlCar(op)
 }
 
+// 激活摄像头
+function activateCamera() {
+  videoError.value = false
+  isPlaying.value = false
+  loadStream()
+}
+
 // 视频加载相关函数
 const isIOS = () => {
   return /iPad|iPhone|iPod/.test(navigator.platform) ||
@@ -187,6 +202,10 @@ const isIOS = () => {
 
 const loadStream = () => {
   if (!videoRef.value) return
+
+  // 重置状态
+  videoError.value = false
+  isPlaying.value = false
 
   // 清除之前的重试定时器
   if (retryTimeout) {
@@ -220,21 +239,29 @@ const loadStream = () => {
       hls.on(Hls.Events.ERROR, (event, data) => {
         console.error('HLS错误:', data)
         if (data.fatal) {
-          // 处理致命错误
-          let errorMessage = '视频流错误'
+          if (isFirstError) {
+            // 第一次错误：不显示弹窗，暂停连接，显示激活按钮
+            isFirstError = false
+            videoError.value = true
+            isPlaying.value = false
+            console.log('视频流首次连接失败，等待用户手动激活')
+          } else {
+            // 后续错误：显示错误消息并重试
+            let errorMessage = '视频流错误'
 
-          if (data.details === 'manifestIncompatibleCodecsError') {
-            errorMessage = '视频流使用了浏览器不支持的编解码器'
-          } else if (data.response && data.response.code === 404) {
-            errorMessage = '视频流未找到'
+            if (data.details === 'manifestIncompatibleCodecsError') {
+              errorMessage = '视频流使用了浏览器不支持的编解码器'
+            } else if (data.response && data.response.code === 404) {
+              errorMessage = '视频流未找到'
+            }
+
+            ElMessage.error(`${errorMessage}, ${retryPause / 1000}秒后重试`)
+
+            // 设置重试
+            retryTimeout = setTimeout(() => {
+              loadStream()
+            }, retryPause)
           }
-
-          ElMessage.error(`${errorMessage}, ${retryPause / 1000}秒后重试`)
-
-          // 设置重试
-          retryTimeout = setTimeout(() => {
-            loadStream()
-          }, retryPause)
         }
       })
 
@@ -263,12 +290,22 @@ const loadStream = () => {
 
   } catch (error) {
     console.error('视频流初始化失败:', error)
-    ElMessage.error('视频连接失败: ' + error.message)
+    
+    if (isFirstError) {
+      // 第一次错误：不显示弹窗，暂停连接，显示激活按钮
+      isFirstError = false
+      videoError.value = true
+      isPlaying.value = false
+      console.log('视频流首次连接失败，等待用户手动激活')
+    } else {
+      // 后续错误：显示错误消息并重试
+      ElMessage.error('视频连接失败: ' + error.message)
 
-    // 设置重试
-    retryTimeout = setTimeout(() => {
-      loadStream()
-    }, retryPause)
+      // 设置重试
+      retryTimeout = setTimeout(() => {
+        loadStream()
+      }, retryPause)
+    }
   }
 }
 
@@ -388,6 +425,37 @@ onUnmounted(() => {
   background: rgba(0, 0, 0, 0.9);
   color: #00ffea;
   z-index: 2;
+}
+
+.video-error-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+
+.error-message {
+  font-size: 18px;
+  color: #ff8888;
+  text-shadow: 0 0 10px #ff8888;
+}
+
+.activate-btn {
+  padding: 12px 24px;
+  font-size: 16px;
+  font-weight: 600;
+  background: linear-gradient(135deg, #00ffea, #06f6f1);
+  border: none;
+  border-radius: 8px;
+  color: #0a0f1e;
+  box-shadow: 0 0 20px rgba(0, 255, 234, 0.5);
+  transition: all 0.3s ease;
+}
+
+.activate-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0 30px rgba(0, 255, 234, 0.8);
+  background: linear-gradient(135deg, #06f6f1, #00ffea);
 }
 
 .placeholder-icon {

@@ -46,7 +46,7 @@ export enum ResultType {
 
 export enum RollingDoorState {
     OPENED = "OPENED",
-    OPENING = "OPENING", 
+    OPENING = "OPENING",
     CLOSED = "CLOSED",
     CLOSING = "CLOSING"
 }
@@ -261,7 +261,7 @@ export function createDefWebSocketClient(): Client {
             connected: () => console.debug("[GraphQL-Connected]")
         }
     })
-    
+
     state.client = client
     return client
 }
@@ -1158,7 +1158,7 @@ export async function getDeviceLightState(deviceId: number): Promise<LightState 
             }
         }
     }>(DEVICE_LIGHT_STATE_QUERY, { deviceId })
-    
+
     return response.data?.self?.getDeviceById?.asLight?.lightState || null
 }
 
@@ -1186,7 +1186,7 @@ export async function getDeviceCarState(deviceId: number): Promise<CarState | nu
             }
         }
     }>(DEVICE_CAR_STATE_QUERY, { deviceId })
-    
+
     return response.data?.self?.getDeviceById?.asCar?.carState || null
 }
 
@@ -1211,7 +1211,7 @@ export interface Result {
 }
 
 export async function operationCar(
-    carId: number, 
+    carId: number,
     operationCar: 'translationAdvance' | 'translationLeft' | 'translationRetreat' | 'translationRight' | 'angularLeft' | 'angularRight' | 'stop'
 ): Promise<Result> {
     const response = await postGql<{
@@ -1226,7 +1226,7 @@ export async function operationCar(
         carId,
         operationCar
     })
-    
+
     return response.data?.self?.getDeviceById?.asCar?.operationCar as Result
 }
 
@@ -1687,4 +1687,24 @@ export async function dispatch(): Promise<ResultType> {
     )
 
     return response?.data?.dispatch?.resultType || ResultType.ERROR
+}
+
+export const INTERRUPT_MUTATION = `
+mutation interrupt {
+    interrupt {
+        resultType
+    }
+}
+`
+
+export async function interrupt(): Promise<ResultType> {
+  const response = await postGql<
+    {
+      dispatch: Result
+    }
+  >(
+    INTERRUPT_MUTATION
+  )
+
+  return response?.data?.dispatch?.resultType || ResultType.ERROR
 }
