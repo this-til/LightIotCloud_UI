@@ -166,7 +166,7 @@ function onMenuClick(type) {
       break
     case 'uav':
       isBright.value = false // 其他页面触发暗化
-      router.push({ path: '/UAV' })
+      router.push({ path: '/deviceList/UAV' })
       break
   }
 }

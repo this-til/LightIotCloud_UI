@@ -12,6 +12,7 @@ import LightMonitor from "../views/LightMonitor.vue"
 import DeviceListPlate from "../components/DeviceListPlate.vue"
 import Uav from "../views/Uav.vue"
 import CarControl from "../views/CarControl.vue"
+import UavControl from "../views/UavControl.vue"
 
 const router = createRouter({
     history: createWebHistory(import.meta.env.BASE_URL),
@@ -80,7 +81,14 @@ const router = createRouter({
                 {
                     path: "/uav",
                     name: "uav",
-                    component: Uav
+                    component: Uav,
+                    children:[
+                      {
+                        path:'/UAVControl',
+                        name: "UavControl",
+                        component: UavControl
+                      }
+                    ]
                 }
             ]
         }

@@ -97,7 +97,9 @@ import {
     setRollingDoor,
     setUavBaseStationCover,
     setUavBaseStationClamp,
-    SUCCESSFUL
+    SUCCESSFUL,
+    getCarById,
+    operationCar
 } from '@/util/Api'
 import { drawBoundingBoxes } from '@/util/DrawBoundingBoxes'
 
@@ -132,6 +134,72 @@ const alertTriggered = ref(false) // 警报触发标志，确保单次选择只�
 
 const batchLock = reactive({ rolling: false, cover: false, clamp: false })
 
+// 车控制相关的
+/* ———————————————————————————*
+ | 2. 车辆状态 & 定时器                                      |
+ *———————————————————————————*/
+const car = ref(null)             // 车辆在线状态等（可选，用来判断 offline）
+const carTimer = ref(null)            // setInterval 句柄
+const currentCarOp = ref(null)            // 当前持续动作
+
+/* ———————————————————————————*
+ | 3. 指令封装                                              |
+ *———————————————————————————*/
+const controlCar = async (op) => {
+    const id = Number(route.query.carId || route.query.id)
+    if (!id) return ElMessage.warning('车辆ID无效')
+    if (car.value && !car.value.online) return ElMessage.warning('车辆离线')
+    try {
+        const res = await operationCar(id, op)
+        if (res.resultType !== 'SUCCESSFUL') {
+            ElMessage.error(`车辆指令失败: ${res.message || '未知错误'}`)
+        }
+    } catch {
+        ElMessage.error('车辆操控请求失败')
+    }
+}
+
+const startCar = (op) => {
+    stopCar()
+    currentCarOp.value = op
+    controlCar(op)
+    carTimer.value = setInterval(() => controlCar(op), 250)
+}
+
+const stopCar = () => {
+    if (carTimer.value) clearInterval(carTimer.value)
+    carTimer.value = null
+    currentCarOp.value = null
+    controlCar('stop')
+}
+
+/* ———————————————————————————*
+ | 4. 键盘监听 (WASD / Q E / Space)                         |
+ *———————————————————————————*/
+const handleKeyDown = (e) => {
+    if (e.repeat) return
+    const k = e.key.toLowerCase()
+    if (['input', 'textarea'].includes((e.target.tagName || '').toLowerCase())) return
+
+    switch (k) {
+        case 'w': startCar('translationAdvance'); e.preventDefault(); break
+        case 's': startCar('translationRetreat'); e.preventDefault(); break
+        case 'a': startCar('translationLeft'); e.preventDefault(); break
+        case 'd': startCar('translationRight'); e.preventDefault(); break
+        case 'q': startCar('angularLeft'); e.preventDefault(); break
+        case 'e': startCar('angularRight'); e.preventDefault(); break
+        case ' ': controlCar('stop'); e.preventDefault(); break
+    }
+}
+
+const handleKeyUp = (e) => {
+    const k = e.key.toLowerCase()
+    const map = {
+        w: 'translationAdvance', s: 'translationRetreat', a: 'translationLeft', d: 'translationRight', q: 'angularLeft', e: 'angularRight'
+    }
+    if (map[k] && currentCarOp.value === map[k]) stopCar()
+}
+
 /**
  * 统一开/关三项
  * @param {boolean} state  true=开  false=关
@@ -152,12 +220,6 @@ const batchSwitch = async (state) => {
     if (!batchLock.rolling) {
         batchLock.rolling = true
         setRollingDoor(id, state)
-            .then(r => {
-                r === SUCCESSFUL
-                    ? ElMessage.success(`卷帘门已${state ? '开启' : '关闭'}`)
-                    : ElMessage.error('卷帘门操作失败')
-            })
-            .catch(() => ElMessage.error('卷帘门请求异常'))
             .finally(() => (batchLock.rolling = false))
     }
 
@@ -165,12 +227,6 @@ const batchSwitch = async (state) => {
     if (!batchLock.cover) {
         batchLock.cover = true
         setUavBaseStationCover(id, state)
-            .then(r => {
-                r === SUCCESSFUL
-                    ? ElMessage.success(`基站盖板已${state ? '开启' : '关闭'}`)
-                    : ElMessage.error('基站盖板操作失败')
-            })
-            .catch(() => ElMessage.error('基站盖板请求异常'))
             .finally(() => (batchLock.cover = false))
     }
 
@@ -178,12 +234,6 @@ const batchSwitch = async (state) => {
     if (!batchLock.clamp) {
         batchLock.clamp = true
         setUavBaseStationClamp(id, state)
-            .then(r => {
-                r === SUCCESSFUL
-                    ? ElMessage.success(`基站夹具已${state ? '开启' : '关闭'}`)
-                    : ElMessage.error('基站夹具操作失败')
-            })
-            .catch(() => ElMessage.error('基站夹具请求异常'))
             .finally(() => (batchLock.clamp = false))
     }
 }
@@ -191,9 +241,9 @@ const batchSwitch = async (state) => {
 const onKeydown = (e) => {
     if (e.repeat) return
     const key = e.key.toLowerCase()
-    if (key === 'w') {          // 批量开
+    if (key === 'j') {          // 批量开
         batchSwitch(true)
-    } else if (key === 's') {   // 批量关
+    } else if (key === 'k') {   // 批量关
         batchSwitch(false)
     }
 }
@@ -673,7 +723,12 @@ const subscribeToSustainedDetection = () => {
     )
 }
 
-onMounted(() => {
+onMounted(async () => {
+    const id = Number(route.query.carId || route.query.id)
+    if (id) try { car.value = await getCarById(id) } catch { }
+
+    window.addEventListener('keydown', handleKeyDown)
+    window.addEventListener('keyup', handleKeyUp)
     loadStream()
     // 添加视频元数据加载事件
     if (videoRef.value) {
@@ -692,6 +747,9 @@ onMounted(() => {
 })
 
 onUnmounted(async () => {
+    stopCar()
+    window.removeEventListener('keydown', handleKeyDown)
+    window.removeEventListener('keyup', handleKeyUp)
     // 退出页面时取消模型选择
     if (selectedModels.value.length > 0) {
         const lightId = Number(route.query.id)
