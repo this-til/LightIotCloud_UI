@@ -81,7 +81,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed, reactive } from 'vue'
 import { useRoute } from 'vue-router'
 import { VideoCamera, CaretTop, CaretBottom, CaretLeft, CaretRight, ZoomIn, ZoomOut } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
@@ -93,7 +93,11 @@ import {
     setSustainedDetection,
     closeSustainedDetection,
     ptzControl,
-    dispatch
+    dispatch,
+    setRollingDoor,
+    setUavBaseStationCover,
+    setUavBaseStationClamp,
+    SUCCESSFUL
 } from '@/util/Api'
 import { drawBoundingBoxes } from '@/util/DrawBoundingBoxes'
 
@@ -126,6 +130,73 @@ const progressDecayInterval = ref(null) // 进度衰减定时器
 const lastFireDetectionTime = ref(0) // 最后一次检测到火灾的时间
 const alertTriggered = ref(false) // 警报触发标志，确保单次选择只触发一次
 
+const batchLock = reactive({ rolling: false, cover: false, clamp: false })
+
+/**
+ * 统一开/关三项
+ * @param {boolean} state  true=开  false=关
+ */
+const batchSwitch = async (state) => {
+    if (!props.device?.online) {
+        ElMessage.warning('设备离线，无法操作')
+        return
+    }
+
+    const id = Number(route.query.id)
+    if (!id) {
+        ElMessage.error('ID 无效')
+        return
+    }
+
+    /* ===== 卷帘门 ===== */
+    if (!batchLock.rolling) {
+        batchLock.rolling = true
+        setRollingDoor(id, state)
+            .then(r => {
+                r === SUCCESSFUL
+                    ? ElMessage.success(`卷帘门已${state ? '开启' : '关闭'}`)
+                    : ElMessage.error('卷帘门操作失败')
+            })
+            .catch(() => ElMessage.error('卷帘门请求异常'))
+            .finally(() => (batchLock.rolling = false))
+    }
+
+    /* ===== 基站盖板 ===== */
+    if (!batchLock.cover) {
+        batchLock.cover = true
+        setUavBaseStationCover(id, state)
+            .then(r => {
+                r === SUCCESSFUL
+                    ? ElMessage.success(`基站盖板已${state ? '开启' : '关闭'}`)
+                    : ElMessage.error('基站盖板操作失败')
+            })
+            .catch(() => ElMessage.error('基站盖板请求异常'))
+            .finally(() => (batchLock.cover = false))
+    }
+
+    /* ===== 基站夹具 ===== */
+    if (!batchLock.clamp) {
+        batchLock.clamp = true
+        setUavBaseStationClamp(id, state)
+            .then(r => {
+                r === SUCCESSFUL
+                    ? ElMessage.success(`基站夹具已${state ? '开启' : '关闭'}`)
+                    : ElMessage.error('基站夹具操作失败')
+            })
+            .catch(() => ElMessage.error('基站夹具请求异常'))
+            .finally(() => (batchLock.clamp = false))
+    }
+}
+
+const onKeydown = (e) => {
+    if (e.repeat) return
+    const key = e.key.toLowerCase()
+    if (key === 'w') {          // 批量开
+        batchSwitch(true)
+    } else if (key === 's') {   // 批量关
+        batchSwitch(false)
+    }
+}
 // 计算属性：是否激活火灾模型
 const isFireModelActive = computed(() => {
     return selectedModels.value.includes('火灾')
@@ -146,15 +217,15 @@ const handleFireDetection = (detectionResults) => {
         fireDetectionCount: fireDetectionCount.value
     })
 
-        // 检查是否有火灾检测结果
+    // 检查是否有火灾检测结果
     // 根据ColorPreset.js中火灾模型的定义，检测项目包括：火、烟
-    const fireDetected = detectionResults.some(detection => 
+    const fireDetected = detectionResults.some(detection =>
         detection.item && (
-            detection.item === '火' || 
+            detection.item === '火' ||
             detection.item === '烟' ||
-            detection.item.includes('火') || 
+            detection.item.includes('火') ||
             detection.item.includes('烟') ||
-            detection.item.toLowerCase().includes('fire') || 
+            detection.item.toLowerCase().includes('fire') ||
             detection.item.toLowerCase().includes('smoke') ||
             detection.item.toLowerCase().includes('flame')
         )
@@ -175,15 +246,15 @@ const handleFireDetection = (detectionResults) => {
         // 重新启动衰减定时器
         startProgressDecay()
 
-                // 可选：打印检测到的火灾项目用于调试
+        // 可选：打印检测到的火灾项目用于调试
         const fireItems = detectionResults
-            .filter(detection => 
+            .filter(detection =>
                 detection.item && (
-                    detection.item === '火' || 
+                    detection.item === '火' ||
                     detection.item === '烟' ||
-                    detection.item.includes('火') || 
+                    detection.item.includes('火') ||
                     detection.item.includes('烟') ||
-                    detection.item.toLowerCase().includes('fire') || 
+                    detection.item.toLowerCase().includes('fire') ||
                     detection.item.toLowerCase().includes('smoke') ||
                     detection.item.toLowerCase().includes('flame')
                 )
@@ -215,7 +286,7 @@ const startProgressDecay = () => {
             if (fireProgress.value > 0) {
                 fireDetectionCount.value = Math.max(0, fireDetectionCount.value - 1)
                 fireProgress.value = Math.max(0, (fireDetectionCount.value / maxFireDetections) * 100)
-                
+
                 // 当进度降到50%以下时，重置警报标志，允许重新触发
                 if (fireProgress.value < 50 && alertTriggered.value) {
                     alertTriggered.value = false
@@ -286,7 +357,7 @@ const resetFireDetection = () => {
         clearInterval(progressDecayInterval.value)
         progressDecayInterval.value = null
     }
-    
+
     console.log('火灾检测状态已重置')
 }
 
@@ -617,6 +688,7 @@ onMounted(() => {
             subscribeToSustainedDetection()
         })
     }
+    window.addEventListener('keydown', onKeydown)
 })
 
 onUnmounted(async () => {
@@ -659,6 +731,8 @@ onUnmounted(async () => {
 
     // 确保组件卸载时清除定时器
     stopContinuousControl()
+
+    window.removeEventListener('keydown', onKeydown)
 })
 
 // 添加窗口大小变化监听
@@ -1332,8 +1406,13 @@ window.addEventListener('resize', () => {
 }
 
 @keyframes progress-shine {
-    0% { left: -100%; }
-    100% { left: 100%; }
+    0% {
+        left: -100%;
+    }
+
+    100% {
+        left: 100%;
+    }
 }
 
 /* Sci-fi风格的火灾进度条 */
@@ -1361,10 +1440,9 @@ window.addEventListener('resize', () => {
 
 .sci-fi .progress-fill {
     background: linear-gradient(90deg,
-        rgba(255, 87, 87, 0.8) 0%,
-        rgba(255, 48, 48, 0.9) 50%,
-        rgba(255, 0, 0, 1) 100%
-    );
+            rgba(255, 87, 87, 0.8) 0%,
+            rgba(255, 48, 48, 0.9) 50%,
+            rgba(255, 0, 0, 1) 100%);
     box-shadow:
         0 0 10px rgba(255, 87, 87, 0.8),
         0 0 20px rgba(255, 87, 87, 0.4);
@@ -1377,6 +1455,7 @@ window.addEventListener('resize', () => {
             0 0 10px rgba(255, 87, 87, 0.8),
             0 0 20px rgba(255, 87, 87, 0.4);
     }
+
     100% {
         box-shadow:
             0 0 15px rgba(255, 87, 87, 1),
