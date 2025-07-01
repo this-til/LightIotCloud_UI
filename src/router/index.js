@@ -9,6 +9,7 @@ import LightContent from "../views/LightContent.vue"
 import LightHistoryData from "../views/LightHistoryData.vue"
 import LightDetection from "../views/LightDetection.vue"
 import LightMonitor from "../views/LightMonitor.vue"
+import LightIntercom from "../views/LightIntercom.vue"
 import DeviceListPlate from "../components/DeviceListPlate.vue"
 import Uav from "../views/Uav.vue"
 import CarControl from "../views/CarControl.vue"
@@ -63,6 +64,11 @@ const router = createRouter({
                             path: "/monitor",
                             name: "light-monitor",
                             component: LightMonitor
+                        },
+                        {
+                            path: "/intercom",
+                            name: "light-intercom",
+                            component: LightIntercom
                         }
                     ]
                 },

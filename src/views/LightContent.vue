@@ -59,6 +59,16 @@
                 active-text="开启" inactive-text="关闭" class="custom-switch" />
             </div>
 
+            <!-- 对讲按钮 -->
+            <div class="control-row" v-if="enabledIntercomSwitch">
+              <div class="control-label-wrapper">
+                <span class="control-label">对讲开关</span>
+                <span class="control-desc">启用以打开设备对讲功能</span>
+              </div>
+              <el-switch v-model="intercomSwitchOpen" :disabled="!device.online" @change="handleIntercomSwitchChange"
+                         active-text="开启" inactive-text="关闭" class="custom-switch" />
+            </div>
+
           </div>
 
         </div>
@@ -76,7 +86,7 @@
             <el-icon class="data-icon">
               <Monitor />
             </el-icon>
-            <span style="font-size: 16px;">温度</span>
+            <span >温度</span>
           </div>
           <div class="data-value">{{ formatValue(lightData.temperature) }}°C</div>
         </el-card>
@@ -207,6 +217,19 @@ import { useRoute } from "vue-router"
 import { Monitor, WindPower, Compass, Sunny, Lightning, Connection } from "@element-plus/icons-vue"
 import { computedAsync } from "@vueuse/core"
 import { ElNotification } from "element-plus"
+import { cos } from 'three/nodes'
+
+const enabledIntercomSwitch = true
+const intercomSwitchOpen = ref(false)
+
+const handleIntercomSwitchChange = (value) => {
+  ElNotification({
+    type: "success",
+    title: "设置成功",
+    message: `语音对讲功能已${value ? "开启" : "关闭"}`,
+    duration: 2000
+  })
+}
 
 const props = defineProps({
   device: Object
@@ -278,10 +301,11 @@ const handleBrightnessChange = async (value) => {
   try {
     const result = await setLightGear(Number(route.query.id), value)
     if (result === SUCCESSFUL) {
+      const displayValue = value / 10
       ElNotification({
         type: "success",
         title: "设置成功",
-        message: `亮度已设置为 ${value}%`,
+        message: `亮度已设置为 ${displayValue}%`,
         duration: 2000
       })
     } else {
@@ -788,12 +812,13 @@ body,
 /* 这一句可放在 scoped，也可放在全局 */
 
 .section-header h2         { font-size: 20px; }   /* 18 → 20 */
-.data-header span          { font-size: 16px; }   /* 默认 → 16 */
-.data-value                { font-size: 26px; }   /* 24 → 26 */
-.power-value               { font-size: 28px; }   /* 26 → 28 */
-.power-value .sub-values   { font-size: 20px; }   /* 18 → 20 */
+.data-header span          { font-size: 20px; }   /* 16 → 20 */
+.power-header span         { font-size: 20px; }   /* 新增功率标题 */
+.data-value                { font-size: 30px; }   /* 26 → 30 */
+.power-value               { font-size: 32px; }   /* 28 → 32 */
+.power-value .sub-values   { font-size: 24px; }   /* 20 → 24 */
 
-.control-label             { font-size: 16px; }   /* 14 → 16 */
+.control-label             { font-size: 18px; }   /* 16 → 18 */
 .control-desc,
 .control-value             { font-size: 14px; }   /* 12 → 14 */
 </style>

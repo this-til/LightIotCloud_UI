@@ -20,6 +20,7 @@ const menuItems = ref([
     { index: "history", label: "历史数据" },
     { index: "detection", label: "检测结果" },
     { index: "monitor", label: "实时监控" },
+    //{ index: "intercom", label: "对讲配置" },
     //{ index: "chat", label: "实时对话" }
 ])
 
@@ -51,6 +52,12 @@ const handleSelect = (key) => {
         case "monitor":
             router.push({
                 name: "light-monitor",
+                query: { id }
+            })
+            break
+        case "intercom":
+            router.push({
+                name: "light-intercom",
                 query: { id }
             })
             break
