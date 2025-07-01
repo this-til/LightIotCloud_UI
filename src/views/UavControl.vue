@@ -1,406 +1,674 @@
-<!-- UavViewer.vue -->
 <template>
-  <div class="viewer-wrapper">
-    <div class="viewer" ref="wrap"></div>
-    <div class="altimeter">
-      <div class="alt-scale">
-        <!-- 外框固定 100% -->
-        <div class="alt-fill" :style="{ height: (altRatio * 100) + '%' }"></div>
+  <div class="uav-control-container sci-fi">
+    <div class="control-container">
+      <!-- 飞行控制面板 -->
+      <div class="control-panels">
+        <!-- 基础飞行控制 -->
+        <div class="flight-control-panel">
+          <h3 class="panel-title">飞行控制</h3>
+          
+          <div class="flight-buttons">
+            <el-button class="flight-btn takeoff-btn" @click="handleTakeoff" :disabled="!device.online">
+              <el-icon><TopRight /></el-icon>
+              起飞
+            </el-button>
+            <el-button class="flight-btn land-btn" @click="handleLand" :disabled="!device.online">
+              <el-icon><Bottom /></el-icon>
+              降落
+            </el-button>
+            <el-button class="flight-btn return-btn" @click="handleReturnHome" :disabled="!device.online">
+              <el-icon><HomeFilled /></el-icon>
+              返航
+            </el-button>
+            <el-button class="flight-btn emergency-btn" @click="handleEmergencyStop" :disabled="!device.online">
+              <el-icon><CircleClose /></el-icon>
+              急停
+            </el-button>
+          </div>
+
+          <!-- 飞行方向控制 -->
+          <div class="direction-controls">
+            <el-button class="direction-btn up-btn" @mousedown="startContinuousMove('up')"
+                       @mouseup="stopContinuousMove" @mouseleave="stopContinuousMove">
+              <el-icon><CaretTop /></el-icon>
+            </el-button>
+            <div class="middle-row">
+              <el-button class="direction-btn left-btn" @mousedown="startContinuousMove('left')"
+                         @mouseup="stopContinuousMove" @mouseleave="stopContinuousMove">
+                <el-icon><CaretLeft /></el-icon>
+              </el-button>
+              <el-button class="direction-btn right-btn" @mousedown="startContinuousMove('right')"
+                         @mouseup="stopContinuousMove" @mouseleave="stopContinuousMove">
+                <el-icon><CaretRight /></el-icon>
+              </el-button>
+            </div>
+            <el-button class="direction-btn down-btn" @mousedown="startContinuousMove('down')"
+                       @mouseup="stopContinuousMove" @mouseleave="stopContinuousMove">
+              <el-icon><CaretBottom /></el-icon>
+            </el-button>
+          </div>
+
+          <!-- 高度控制 -->
+          <div class="altitude-controls">
+            <el-button class="altitude-btn" @mousedown="startContinuousMove('altitude_up')"
+                       @mouseup="stopContinuousMove" @mouseleave="stopContinuousMove">
+              <el-icon><Top /></el-icon>
+              上升
+            </el-button>
+            <el-button class="altitude-btn" @mousedown="startContinuousMove('altitude_down')"
+                       @mouseup="stopContinuousMove" @mouseleave="stopContinuousMove">
+              <el-icon><Bottom /></el-icon>
+              下降
+            </el-button>
+          </div>
+        </div>
+
+        <!-- 云台控制面板 -->
+        <div class="gimbal-control-panel">
+          <h3 class="panel-title">云台控制</h3>
+          
+          <div class="gimbal-controls">
+            <el-button class="gimbal-btn" @mousedown="startGimbalMove('pitch_up')"
+                       @mouseup="stopGimbalMove" @mouseleave="stopGimbalMove">
+              <el-icon><CaretTop /></el-icon>
+            </el-button>
+            <div class="gimbal-middle-row">
+              <el-button class="gimbal-btn" @mousedown="startGimbalMove('yaw_left')"
+                         @mouseup="stopGimbalMove" @mouseleave="stopGimbalMove">
+                <el-icon><CaretLeft /></el-icon>
+              </el-button>
+              <el-button class="gimbal-btn center-btn" @click="resetGimbal">
+                <el-icon><Aim /></el-icon>
+              </el-button>
+              <el-button class="gimbal-btn" @mousedown="startGimbalMove('yaw_right')"
+                         @mouseup="stopGimbalMove" @mouseleave="stopGimbalMove">
+                <el-icon><CaretRight /></el-icon>
+              </el-button>
+            </div>
+            <el-button class="gimbal-btn" @mousedown="startGimbalMove('pitch_down')"
+                       @mouseup="stopGimbalMove" @mouseleave="stopGimbalMove">
+              <el-icon><CaretBottom /></el-icon>
+            </el-button>
+          </div>
+        </div>
+
+        <!-- 模式控制面板 -->
+        <div class="mode-control-panel">
+          <h3 class="panel-title">飞行模式</h3>
+          
+          <div class="mode-controls">
+            <el-select v-model="selectedFlightMode" @change="handleFlightModeChange" class="flight-mode-select">
+              <el-option label="手动模式" value="manual" />
+              <el-option label="自动模式" value="auto" />
+              <el-option label="巡航模式" value="cruise" />
+              <el-option label="定点模式" value="position" />
+            </el-select>
+          </div>
+
+          <!-- 辅助功能 -->
+          <div class="auxiliary-controls">
+            <el-switch v-model="ledLights" @change="handleLedToggle" 
+                       active-text="导航灯" inactive-text="导航灯" class="aux-switch" />
+            <el-switch v-model="gpsHold" @change="handleGpsHoldToggle"
+                       active-text="GPS锁定" inactive-text="GPS锁定" class="aux-switch" />
+          </div>
+        </div>
       </div>
-      <div class="alt-label">{{ droneAlt.toFixed(1) }} m</div>
+
+      <!-- 视频监控区域 -->
+      <div class="video-container">
+        <video ref="videoRef" class="video-player" autoplay muted crossorigin="anonymous"></video>
+        <div v-if="!isVideoLoaded" class="video-placeholder">
+          <el-icon class="placeholder-icon">
+            <VideoCamera />
+          </el-icon>
+          <span>无人机视频加载中...</span>
+        </div>
+        
+        <!-- 视频覆盖信息 -->
+        <div class="video-overlay">
+          <div class="flight-info">
+            <div class="info-item">
+              <span class="info-label">高度:</span>
+              <span class="info-value">{{ formatValue(flightData.altitude) }}m</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">速度:</span>
+              <span class="info-value">{{ formatValue(flightData.speed) }}m/s</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">电量:</span>
+              <span class="info-value">{{ formatValue(batteryLevel) }}%</span>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
-    <div class="cam-info">
-      Camera →
-      X: {{ cam.x }}&nbsp;
-      Y: {{ cam.y }}&nbsp;
-      Z: {{ cam.z }}
+    <!-- 状态信息栏 -->
+    <div class="status-bar">
+      <div class="status-section">
+        <span class="status-label">飞行状态:</span>
+        <el-tag :type="getStatusType(flightStatus)" size="small">{{ flightStatus }}</el-tag>
+      </div>
+      <div class="status-section">
+        <span class="status-label">信号强度:</span>
+        <el-progress :percentage="signalStrength" :show-text="false" style="width: 100px;" />
+        <span>{{ signalStrength }}%</span>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
-import * as THREE from 'three'
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader'
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls'
-import { AxesHelper } from 'three'
+import { useRoute } from 'vue-router'
+import { 
+  VideoCamera, TopRight, Bottom, HomeFilled, CircleClose, 
+  CaretTop, CaretBottom, CaretLeft, CaretRight, Top, Aim
+} from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
 
-/* ——— DOM & 相机坐标 ——— */
-const wrap = ref(null)
-const cam = ref({ x: 0, y: 0, z: 0 })
+const props = defineProps({
+  device: Object
+})
 
-/* ——— Three.js 变量 ——— */
-let scene, camera, renderer, controls
-let leftLid, rightLid      // 舱盖
-let drone, propellers = [] // 无人机根节点 & 四桨叶
-const loader = new GLTFLoader()
-const clock = new THREE.Clock()
+const route = useRoute()
+const videoRef = ref(null)
+const isVideoLoaded = ref(false)
 
-/* ——— 盖板、飞行、旋翼状态变量 ——— */
-let lidProg = 0, lidTarget = 0        // 0=合拢,1=全开
-let rotorSpd = 0, rotorMax = 30       // rad/s
-let phase = 'idle'                      // 状态机
-let flyTheta = 0                           // 围绕角度
-const flyH = 5.0, flyR = 2            // 悬停高度&半径
-const takeoffUpVel = 1.2                    // m/s 起飞上升速
-const landDownVel = 1.2                    // m/s 降落下落速
-const landingThreshold = 0.25       // m 降落阈值
+// 飞行控制状态
+const selectedFlightMode = ref('manual')
+const ledLights = ref(false)
+const gpsHold = ref(false)
 
-// 海拔仪
-const droneAlt = ref(0)        // 当前高度
-const altRatio = ref(0)        // 0–1 比例(用于 tape)
+// 飞行数据
+const flightStatus = ref('待机模式')
+const flightData = ref({
+  altitude: null,
+  speed: null
+})
+const batteryLevel = ref(null)
+const signalStrength = ref(0)
 
-/* flyH = 5   →  100% */
-const ALT_MAX = flyH            // 若将来想飞更高只改这里
+// 控制定时器
+const moveTimer = ref(null)
+const gimbalTimer = ref(null)
 
-// 无人机拆解
-let droneExploded            // 剖视副本
-const explodeGap = 0.6       // 部件之间的 Y 间隔
-const explodeOrigin = new THREE.Vector3(-5, 5, 15)  // 左上角原点 (x,y,z)
-
-/* ====================================================================
-   1) 初始化场景
-==================================================================== */
-function init() {
-  scene = new THREE.Scene()
-  scene.background = new THREE.Color(0x20232a)
-
-  const { clientWidth: w, clientHeight: h } = wrap.value
-  camera = new THREE.PerspectiveCamera(60, w / h, 0.1, 500)
-  camera.position.set(7.56, 3.48, 0.09)
-  updateCam()
-
-  renderer = new THREE.WebGLRenderer({ antialias: true })
-  renderer.setSize(w, h)
-  wrap.value.appendChild(renderer.domElement)
-
-  controls = new OrbitControls(camera, renderer.domElement)
-  controls.enableDamping = true
-  controls.target.set(0, 3, 0)
-  controls.update()
-  controls.addEventListener('change', updateCam)
-
-  scene.add(new THREE.AmbientLight(0xffffff, 0.6))
-  const dir = new THREE.DirectionalLight(0xffffff, 1)
-  const hemi = new THREE.HemisphereLight(0x66aaff, 0x202020, 0.8)
-  scene.add(hemi)
-
-  /* 赛博蓝边缘光，让上盖边缘亮起来 */
-  const rim = new THREE.PointLight(0x0099ff, 6, 10)
-  rim.position.set(0, 2.5, 5)     // 摄像机上方偏前
-  scene.add(rim)
-  dir.position.set(5, 10, 7)
-  scene.add(dir)
-
-  // const axes = new AxesHelper(2)
-  // scene.add(axes)
-
-  /* ☆ 侧向点光：给盖板打高光 */
-  const lidLight = new THREE.PointLight(0xffffff, 4, 6) // (颜色, 强度, 距离)
-  lidLight.position.set(2.5, 1.5, 0)                   // 机坪右侧稍高
-  scene.add(lidLight)
-  // scene.add(new THREE.PointLightHelper(lidLight, 0.2)) // 如需调试可开 helper
-
-  loadModels()
-}
-
-/* ====================================================================
-   2) 加载模型
-==================================================================== */
-function loadModels() {
-  /* 停机坪 */
-  loader.load('/src/model/停机坪.glb', gltf => {
-    const base = gltf.scene
-    leftLid = base.getObjectByName('左边图形')
-    rightLid = base.getObjectByName('右边图形')
-    if (!leftLid || !rightLid) console.warn('⚠️ 盖板节点名不匹配！')
-
-    base.traverse(o => {
-      if (o.isMesh) o.material = new THREE.MeshStandardMaterial({
-        color: 0x555555, metalness: 0.4, roughness: 0.6
-      })
-    })
-    base.scale.set(1.2, 1.2, 1.2)
-    scene.add(base)
-  })
-
-  /* 无人机 */
-  loader.load('/src/model/无人机.glb', gltf => {
-    drone = gltf.scene
-
-      // 找四桨叶
-      ;['前桨叶', '右桨叶', '后桨叶', '左桨叶'].forEach(n => {
-        const b = drone.getObjectByName(n)
-        if (b) propellers.push(b)
-        else console.warn(`⚠️ 未找到桨叶节点 ${n}`)
-      })
-
-    drone.traverse(o => {
-      if (o.isMesh) o.material = new THREE.MeshStandardMaterial({
-        color: 0x0066ff,
-        emissive: 0x0088ff,
-        emissiveIntensity: 0.6,
-        metalness: 0.5,
-        roughness: 0.6
-      })
-    })
-    drone.scale.set(0.6, 0.6, 0.6)
-    drone.position.set(0, 0.25, 0)      // 停机坪中心起飞点
-    scene.add(drone)
-
-    /* ---------------- 剖视副本 ---------------- */
-    const raw = drone.clone(true)         // 先克隆
-    droneExploded = new THREE.Group()     // 包一层组方便整体平移
-    droneExploded.add(raw)
-
-    // 拿到各部件
-    const bodyE = raw.getObjectByName('机身') || raw
-    const bladesE = ['前桨叶', '右桨叶', '后桨叶', '左桨叶']
-      .map(n => droneExploded.getObjectByName(n))
-      .filter(Boolean)
-
-    const partsE = [bodyE, ...bladesE]
-
-    // 统一材质调暗避免分不清
-    partsE.forEach(m => {
-      m.traverse(o => {
-        if (o.isMesh) {
-          o.material = o.material.clone()
-          o.material.emissiveIntensity = 0.2
-          o.material.color.multiplyScalar(0.8)
-        }
-      })
-    })
-
-    // 定位：整体向左平移，再按 Y 递增排开
-    partsE.forEach((p, idx) => {
-      p.position.set(
-        explodeOrigin.x,
-        explodeOrigin.y + idx * explodeGap,
-        explodeOrigin.z
-      )
-    })
-
-    scene.add(droneExploded)
-  })
-}
-
-/* ====================================================================
-   3) 盖板插值
-==================================================================== */
-function updateLid(p) {
-  if (!leftLid || !rightLid) return
-  const r = Math.PI / 1.7 * p
-  const l = -Math.PI / 1.7 * p
-  rightLid.rotation.x = r
-  leftLid.rotation.x = l
-}
-
-/* ====================================================================
-   4) 主动画循环
-==================================================================== */
-function animate() {
-  requestAnimationFrame(animate)
-  const dt = clock.getDelta()
-
-  if (!drone) {
-    controls.update()
-    renderer.render(scene, camera)
-    return
-  }
-
-  /* 4-A 盖板缓动 */
-  lidProg += (lidTarget - lidProg) * 0.01
-  updateLid(lidProg)
-
-  /* 4-B 状态机 */
-  switch (phase) {
-    /* =============== 开盖阶段 =============== */
-    case 'opening':
-      // 盖板快开完就进入 takeoff
-      if (lidProg > 0.98) phase = 'takeoff'
-      break
-
-    /* =============== 起飞上升 =============== */
-    case 'takeoff':
-      rotorSpd += (rotorMax - rotorSpd) * 0.05        // 加速桨叶
-      drone.position.y += takeoffUpVel * dt
-      if (drone.position.y >= flyH) {
-        drone.position.y = flyH
-        phase = 'hover'
-      }
-      break
-
-    /* =============== 悬停绕圈 =============== */
-    case 'hover':
-      rotorSpd += (rotorMax - rotorSpd) * 0.05
-      flyTheta += 1.0 * dt                            // 1rad/s 绕圈
-      drone.position.x = flyR * Math.cos(flyTheta)
-      drone.position.z = flyR * Math.sin(flyTheta)
-      break
-
-    /* =============== 返航降落 =============== */
-    case 'return':
-      /* 2-A 始终保持桨叶高速 */
-      rotorSpd += (rotorMax - rotorSpd) * 0.05
-
-      /* 2-B 回到停机坪中心并下降 */
-      drone.position.x += (-drone.position.x) * 0.05
-      drone.position.z += (-drone.position.z) * 0.05
-      drone.position.y -= landDownVel * dt
-
-      /* 2-C 到达地面 → 进入 landing 阶段 */
-      if (drone.position.y <= landingThreshold) {
-        drone.position.y = landingThreshold
-        phase = 'landing'
-      }
-      break
-
-    /* =============== 已落地 — 开始减速 =============== */
-    case 'landing':
-      /* 3-A 先让桨叶慢慢降速 */
-      rotorSpd += (0 - rotorSpd) * 0.03
-
-      /* 3-B 判定桨速足够低且已在中心 → 关盖 */
-      if (rotorSpd < 0.5 &&
-        Math.hypot(drone.position.x, drone.position.z) < 0.05) {
-        phase = 'closing'
-        lidTarget = 0
-      }
-      break
-
-    /* =============== 关盖等待完成 =============== */
-    case 'closing':
-      rotorSpd += (0 - rotorSpd) * 0.03
-      if (lidProg < 0.02) phase = 'idle'
-      break
-  }
-
-  /* 4-C 旋转桨叶 */
-  propellers.forEach(b => { b.rotation.y += rotorSpd * dt })
-
-  controls.update()
-  // 爬升仪实时动画
-  droneAlt.value = drone.position.y
-  altRatio.value = Math.min(droneAlt.value / ALT_MAX, 1)
-  renderer.render(scene, camera)
-}
-
-/* ====================================================================
-   5) 事件 & 工具
-==================================================================== */
-function updateCam() {
-  cam.value = {
-    x: camera.position.x.toFixed(2),
-    y: camera.position.y.toFixed(2),
-    z: camera.position.z.toFixed(2)
-  }
-}
-
-function onKeyDown(e) {
-  if (e.key !== 'w' && e.key !== 'W') return
-
-  if (phase === 'idle' || phase === 'closing') {
-    // 第一次 W：开始开盖
-    phase = 'opening'
-    lidTarget = 1
-  } else if (phase === 'hover') {
-    // 第二次 W：开始返航
-    phase = 'return'
-  }
-}
-
-function resize() {
-  const { clientWidth: w, clientHeight: h } = wrap.value
-  camera.aspect = w / h
-  camera.updateProjectionMatrix()
-  renderer.setSize(w, h)
-}
-
-/* ====================================================================
-   6) Vue 生命周期
-==================================================================== */
-onMounted(() => {
-  init()
-  animate()
-  window.addEventListener('resize', resize)
-  window.addEventListener('keydown', onKeyDown)
+onMounted(async () => {
+  const uavId = props.device.id
+  console.log("UAV Control mounted for device:", uavId)
+  
+  // 模拟视频加载
+  setTimeout(() => {
+    isVideoLoaded.value = true
+  }, 2000)
 })
 
 onUnmounted(() => {
-  window.removeEventListener('resize', resize)
-  window.removeEventListener('keydown', onKeyDown)
-  controls?.removeEventListener('change', updateCam)
-  renderer?.dispose()
-  controls?.dispose()
+  stopContinuousMove()
+  stopGimbalMove()
 })
+
+// 飞行控制函数
+const handleTakeoff = async () => {
+  ElMessage({
+    type: "info",
+    title: "功能开发中",
+    message: "起飞功能正在开发中",
+    duration: 2000
+  })
+}
+
+const handleLand = async () => {
+  ElMessage({
+    type: "info", 
+    title: "功能开发中",
+    message: "降落功能正在开发中",
+    duration: 2000
+  })
+}
+
+const handleReturnHome = async () => {
+  ElMessage({
+    type: "info",
+    title: "功能开发中", 
+    message: "返航功能正在开发中",
+    duration: 2000
+  })
+}
+
+const handleEmergencyStop = async () => {
+  ElMessage({
+    type: "warning",
+    title: "功能开发中",
+    message: "急停功能正在开发中", 
+    duration: 2000
+  })
+}
+
+// 连续移动控制
+const startContinuousMove = (direction) => {
+  stopContinuousMove()
+  
+  moveTimer.value = setInterval(() => {
+    console.log(`执行移动: ${direction}`)
+  }, 100)
+}
+
+const stopContinuousMove = () => {
+  if (moveTimer.value) {
+    clearInterval(moveTimer.value)
+    moveTimer.value = null
+  }
+}
+
+// 云台控制
+const startGimbalMove = (direction) => {
+  stopGimbalMove()
+  
+  gimbalTimer.value = setInterval(() => {
+    console.log(`执行云台移动: ${direction}`)
+  }, 100)
+}
+
+const stopGimbalMove = () => {
+  if (gimbalTimer.value) {
+    clearInterval(gimbalTimer.value)
+    gimbalTimer.value = null
+  }
+}
+
+const resetGimbal = () => {
+  ElMessage({
+    type: "info",
+    title: "功能开发中",
+    message: "云台复位功能正在开发中",
+    duration: 2000
+  })
+}
+
+// 模式控制
+const handleFlightModeChange = (mode) => {
+  ElMessage({
+    type: "info",
+    title: "功能开发中",
+    message: `切换飞行模式功能正在开发中`,
+    duration: 2000
+  })
+}
+
+const handleLedToggle = (value) => {
+  console.log(`LED灯: ${value ? '开启' : '关闭'}`)
+}
+
+const handleGpsHoldToggle = (value) => {
+  console.log(`GPS锁定: ${value ? '开启' : '关闭'}`)
+}
+
+// 辅助函数
+const formatValue = (value) => {
+  if (value === undefined || value === null) return "--"
+  if (typeof value === 'number') {
+    return Number(value.toFixed(1)).toString()
+  }
+  return value.toString()
+}
+
+const getStatusType = (status) => {
+  const statusMap = {
+    '待机模式': '',
+    '起飞模式': 'warning',
+    '巡航模式': 'success',
+    '悬停模式': 'info',
+    '返航模式': 'warning',
+    '降落模式': 'warning',
+    '故障模式': 'danger'
+  }
+  return statusMap[status] || ''
+}
 </script>
 
 <style scoped>
-.viewer-wrapper {
-  width: 100%;
-  height: 100%;
-  position: relative;
+/* 基础布局 */
+.uav-control-container {
+  padding: 20px;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  background: transparent;
 }
 
-.viewer {
-  width: 100%;
-  height: 100%;
+.control-container {
+  display: flex;
+  gap: 20px;
+  flex: 1;
 }
 
-.cam-info {
-  position: absolute;
-  bottom: 10px;
-  left: 10px;
-  padding: 4px 8px;
-  background: rgba(0, 0, 0, .55);
-  color: #00e4ff;
-  font-family: monospace;
-  font-size: 14px;
-  border-radius: 4px;
-  user-select: none;
+.control-panels {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  width: 280px;
 }
 
-.altimeter {
-  position: absolute;
-  top: 10%;
-  right: 20px;
-  width: 48px;
-  height: 60%;
+/* 控制面板样式 */
+.flight-control-panel,
+.gimbal-control-panel,
+.mode-control-panel {
+  background: rgba(20, 25, 45, .9);
+  border: 1px solid #06f6f1;
+  box-shadow: 0 0 8px #06f6f1;
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.panel-title {
+  color: #00ffea;
+  border-bottom: 1px solid rgba(6, 246, 241, .4);
+  margin: 0 0 15px 0;
+  padding-bottom: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  text-align: center;
+}
+
+/* 飞行按钮 */
+.flight-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 15px;
+}
+
+.flight-btn {
+  height: 45px;
+  font-size: 13px;
+  background: rgba(0, 10, 20, .9);
+  border: 1px solid rgba(0, 255, 234, .4);
+  color: #8fe8ff;
+  box-shadow: 0 0 4px rgba(0, 255, 234, .4);
+}
+
+.flight-btn:hover {
+  color: #00ffea;
+  box-shadow: 0 0 8px #00ffea;
+  background: rgba(0, 10, 20, 1);
+}
+
+.emergency-btn {
+  background: rgba(255, 87, 87, .2) !important;
+  border-color: rgba(255, 87, 87, .6) !important;
+  color: #ff6b6b !important;
+}
+
+.emergency-btn:hover {
+  background: rgba(255, 87, 87, .3) !important;
+  box-shadow: 0 0 8px #ff6b6b !important;
+}
+
+/* 方向控制 */
+.direction-controls {
   display: flex;
   flex-direction: column;
   align-items: center;
-  pointer-events: none;
-  /* 纯展示 */
+  gap: 4px;
+  margin-bottom: 15px;
 }
 
-.alt-scale {
+.middle-row {
+  display: flex;
+  gap: 20px;
+  margin: 4px 0;
+}
+
+.direction-btn {
+  width: 35px;
+  height: 35px;
+  border-radius: 50%;
+  background: rgba(0, 10, 20, .9);
+  border: 1px solid rgba(0, 255, 234, .4);
+  color: #8fe8ff;
+  box-shadow: 0 0 4px rgba(0, 255, 234, .4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.direction-btn:hover {
+  color: #00ffea;
+  box-shadow: 0 0 8px #00ffea;
+}
+
+/* 高度控制 */
+.altitude-controls {
+  display: flex;
+  gap: 8px;
+}
+
+.altitude-btn {
   flex: 1;
-  width: 12px;
-  border: 2px solid #00e4ff;
-  background: rgba(0, 0, 0, 0.3);
-  overflow: hidden;
-  border-radius: 4px;
-  box-shadow: 0 0 6px #00e4ff;
-  position: relative;
+  height: 35px;
+  font-size: 12px;
+  background: rgba(0, 10, 20, .9);
+  border: 1px solid rgba(0, 255, 234, .4);
+  color: #8fe8ff;
 }
 
-.alt-fill {
+.altitude-btn:hover {
+  color: #00ffea;
+  box-shadow: 0 0 6px #00ffea;
+}
+
+/* 云台控制 */
+.gimbal-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.gimbal-middle-row {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.gimbal-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: rgba(0, 10, 20, .9);
+  border: 1px solid rgba(0, 255, 234, .4);
+  color: #8fe8ff;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.gimbal-btn:hover {
+  color: #00ffea;
+  box-shadow: 0 0 6px #00ffea;
+}
+
+.center-btn {
+  background: rgba(0, 255, 234, .2) !important;
+}
+
+/* 模式控制 */
+.mode-controls {
+  margin-bottom: 15px;
+}
+
+.flight-mode-select {
   width: 100%;
-  background: linear-gradient(0deg, #00e4ff 0%, #008cff 60%, #0040ff 100%);
-  transition: height 0.2s linear;
-  position: absolute;
-  bottom: 0;
-  /* ★ 贴住底边，向上生长 */
 }
 
-.alt-label {
-  margin-top: 6px;
-  color: #00e4ff;
-  font-family: monospace;
-  font-size: 14px;
-  text-shadow: 0 0 4px #008cff;
-  user-select: none;
+.auxiliary-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
-</style>
+
+.aux-switch {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* 视频区域 */
+.video-container {
+  position: relative;
+  flex: 1;
+  background: #000;
+  border: 1px solid #06f6f1;
+  box-shadow: 0 0 10px #06f6f1;
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.video-player {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.video-placeholder {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background: rgba(0, 0, 0, .9);
+  color: #00ffea;
+  z-index: 2;
+}
+
+.placeholder-icon {
+  font-size: 64px;
+  margin-bottom: 16px;
+  color: #00ffea;
+  text-shadow: 0 0 10px #00ffea;
+}
+
+/* 视频覆盖信息 */
+.video-overlay {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  background: rgba(0, 10, 20, .8);
+  border: 1px solid rgba(0, 255, 234, .3);
+  border-radius: 8px;
+  padding: 10px;
+  z-index: 3;
+}
+
+.flight-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.info-item {
+  display: flex;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.info-label {
+  color: #8fe8ff;
+  min-width: 40px;
+}
+
+.info-value {
+  color: #00ffea;
+  font-weight: 600;
+}
+
+/* 状态栏 */
+.status-bar {
+  display: flex;
+  gap: 20px;
+  padding: 10px 15px;
+  background: rgba(20, 25, 45, .9);
+  border: 1px solid #06f6f1;
+  border-radius: 8px;
+  align-items: center;
+}
+
+.status-section {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 12px;
+}
+
+.status-label {
+  color: #8fe8ff;
+  font-weight: 500;
+}
+
+/* Element UI 组件自定义样式 */
+:deep(.el-select .el-input__inner) {
+  background: rgba(0, 10, 20, .8);
+  border: 1px solid #00d8ff;
+  color: #c8feff;
+}
+
+:deep(.el-switch.is-checked .el-switch__core) {
+  background: #00ffff;
+}
+
+:deep(.el-switch .el-switch__core) {
+  background: rgba(0, 255, 234, .25);
+}
+
+:deep(.el-switch .el-switch__button) {
+  background: #001018;
+  box-shadow: 0 0 4px #00ffff;
+}
+
+:deep(.el-progress-bar__outer) {
+  background: rgba(0, 255, 234, .2);
+}
+
+:deep(.el-progress-bar__inner) {
+  background: linear-gradient(90deg, #ff6b6b 0%, #00ffff 50%, #00ffea 100%);
+}
+
+/* 响应式 */
+@media (max-width: 1200px) {
+  .control-panels {
+    width: 240px;
+  }
+  
+  .flight-buttons {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .control-container {
+    flex-direction: column;
+  }
+  
+  .control-panels {
+    width: 100%;
+    flex-direction: row;
+    overflow-x: auto;
+  }
+  
+  .flight-control-panel,
+  .gimbal-control-panel, 
+  .mode-control-panel {
+    min-width: 200px;
+  }
+}
+</style> 

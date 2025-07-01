@@ -12,7 +12,7 @@ import LightMonitor from "../views/LightMonitor.vue"
 import DeviceListPlate from "../components/DeviceListPlate.vue"
 import Uav from "../views/Uav.vue"
 import CarControl from "../views/CarControl.vue"
-import UavControl from "../views/UavControl.vue"
+import UavControl from "../views/UavContent.vue"
 
 const router = createRouter({
     history: createWebHistory(import.meta.env.BASE_URL),
@@ -50,17 +50,17 @@ const router = createRouter({
                             component: LightContent
                         },
                         {
-                            path: "historyData",
+                            path: "/historyData",
                             name: "light-history",
                             component: LightHistoryData
                         },
                         {
-                            path: "detection",
+                            path: "/detection",
                             name: "light-detection",
                             component: LightDetection
                         },
                         {
-                            path: "monitor",
+                            path: "/monitor",
                             name: "light-monitor",
                             component: LightMonitor
                         }
@@ -72,7 +72,7 @@ const router = createRouter({
                     component: Car,
                     children:[
                       {
-                        path: "CarControl",
+                        path: "/CarControl",
                         name: "CarControl",
                         component: CarControl
                       }
@@ -84,8 +84,8 @@ const router = createRouter({
                     component: Uav,
                     children:[
                       {
-                        path:'/UAVControl',
-                        name: "UavControl",
+                        path:'/UavContent',
+                        name: "UavContent",
                         component: UavControl
                       }
                     ]

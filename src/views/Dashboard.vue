@@ -89,14 +89,14 @@
         @click="drillBack">返回上一级</el-button>
 
       <div ref="mapRef" class="china-map"></div>
-      <div ref="threeRef" class="three-view">
+<!--      <div ref="threeRef" class="three-view">
         <div class="cam-info">
           Camera →
           X: {{ cam.x.toFixed(2) }}&nbsp;
           Y: {{ cam.y.toFixed(2) }}&nbsp;
           Z: {{ cam.z.toFixed(2) }}
         </div>
-      </div>
+      </div>-->
     </div>
 
     <!-- ============ 右侧分布栏 ============ -->

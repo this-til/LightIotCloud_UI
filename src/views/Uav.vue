@@ -23,7 +23,7 @@ const menuItems = ref([
 onMounted(async () => {
   light.value = await getLightById(Number(router.currentRoute.value.query.id))
   router.replace({
-    name: 'UavControl',
+    name: 'UavContent',
     query: { id: route.query.id }
   })
 })
@@ -33,36 +33,9 @@ const handleSelect = (key) => {
   switch (key) {
     case "status":
       router.push({
-        name: "UavControl",
+        name: "UavContent",
         query: { id }
       })
-      break
-    case "history":
-      router.push({
-        name: "light-history",
-        query: { id }
-      })
-      break
-    case "detection":
-      router.push({
-        name: "light-detection",
-        query: { id }
-      })
-      break
-    case "monitor":
-      router.push({
-        name: "light-monitor",
-        query: { id }
-      })
-      break
-    case "webrtc-monitor":
-      router.push({
-        name: "light-webrtc-monitor",
-        query: { id }
-      })
-      break
-    case "chat":
-      console.log("实时对话 - 待实现")
       break
   }
 }
