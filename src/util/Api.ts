@@ -1700,11 +1700,11 @@ mutation interrupt {
 export async function interrupt(): Promise<ResultType> {
   const response = await postGql<
     {
-      dispatch: Result
+      interrupt: Result
     }
   >(
     INTERRUPT_MUTATION
   )
 
-  return response?.data?.dispatch?.resultType || ResultType.ERROR
+  return response?.data?.interrupt?.resultType || ResultType.ERROR
 }
