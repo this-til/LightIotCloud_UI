@@ -76,7 +76,7 @@
             <el-icon class="data-icon">
               <Monitor />
             </el-icon>
-            <span>温度</span>
+            <span style="font-size: 16px;">温度</span>
           </div>
           <div class="data-value">{{ formatValue(lightData.temperature) }}°C</div>
         </el-card>
@@ -200,7 +200,7 @@
 import { computed, onMounted, onUnmounted, ref } from "vue"
 import {
   getDefWebSocketClient, subscriptionLightDataReportEventEvent, createDefWebSocketClient,
-  subscriptionLightStateReportEvent, setLightGear, setAutomaticGear, setRollingDoor, 
+  subscriptionLightStateReportEvent, setLightGear, setAutomaticGear, setRollingDoor,
   setUavBaseStationCover, setUavBaseStationClamp, SUCCESSFUL
 } from "@/util/Api"
 import { useRoute } from "vue-router"
@@ -454,7 +454,7 @@ const formatValue = (value) => {
 }
 
 .section-header h2 {
-  font-size: 18px;
+  font-size: 24px;
   font-weight: 600;
   color: #303133;
   margin: 0;
@@ -527,7 +527,7 @@ const formatValue = (value) => {
 }
 
 .control-label {
-  font-size: 14px;
+  font-size: 20px;
   font-weight: 500;
   color: #303133;
   margin-bottom: 4px;
@@ -539,7 +539,7 @@ const formatValue = (value) => {
 }
 
 .control-value {
-  font-size: 12px;
+  font-size: 16px;
   color: #909399;
 }
 
@@ -786,4 +786,14 @@ body,
 }
 
 /* 这一句可放在 scoped，也可放在全局 */
+
+.section-header h2         { font-size: 20px; }   /* 18 → 20 */
+.data-header span          { font-size: 16px; }   /* 默认 → 16 */
+.data-value                { font-size: 26px; }   /* 24 → 26 */
+.power-value               { font-size: 28px; }   /* 26 → 28 */
+.power-value .sub-values   { font-size: 20px; }   /* 18 → 20 */
+
+.control-label             { font-size: 16px; }   /* 14 → 16 */
+.control-desc,
+.control-value             { font-size: 14px; }   /* 12 → 14 */
 </style>
