@@ -20,11 +20,11 @@ const deviceList = ref([])
 const title = computed(() => {
   switch (deviceType.value) {
     case DeviceType.CAR:
-      return "智能巡检小车列表"
+      return "智能机器人列表"
     case DeviceType.LIGHT:
       return "智能灯杆列表"
     case DeviceType.UAV:
-      return "无人机设备列表"
+      return "智能无人机列表"
     default:
       return "设备列表"
   }

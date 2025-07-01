@@ -25,11 +25,11 @@
               <!--              <el-badge :value="0" class="badge" />-->
             </el-button>
             <el-button type="text" @click="onMenuClick('car')" class="menu-btn">
-              <span>巡检小车</span>
+              <span>智能机器人</span>
               <!--              <el-badge :value="0" class="badge" />-->
             </el-button>
             <el-button type="text" @click="onMenuClick('uav')" class="menu-btn">
-              <span>无人机</span>
+              <span>智能无人机</span>
               <!--              <el-badge :value="0" class="badge" />-->
             </el-button>
           </div>
