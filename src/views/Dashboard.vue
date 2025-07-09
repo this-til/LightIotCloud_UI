@@ -103,7 +103,7 @@
     <div class="stats-sidebar right-panel">
       <h3 class="sidebar-title">设备状态分布</h3>
 
-      <div class="stats-section">
+<!--      <div class="stats-section">
         <h4 class="section-title">在线状态</h4>
         <div class="stats-cards">
           <div class="stat-card online">
@@ -129,7 +129,7 @@
             </div>
           </div>
         </div>
-      </div>
+      </div>-->
 
       <div class="stats-section">
         <h4 class="section-title">设备类型</h4>
@@ -368,9 +368,9 @@ const drillStack = ref([])
 
 /* ✨ 演示用散点数据 */
 const scatterData = [
-  { name: '北京', value: [116.46, 39.92] },
+ /* { name: '北京', value: [116.46, 39.92] },
   { name: '上海', value: [121.48, 31.22] },
-  { name: '广州', value: [113.23, 23.16] },
+  { name: '广州', value: [113.23, 23.16] },*/
 ]
 
 /* ===== 伪 3-D 地图 Option 生成器 ===== */

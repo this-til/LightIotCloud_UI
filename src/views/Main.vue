@@ -28,12 +28,12 @@
               <span>智能机器人</span>
               <!--              <el-badge :value="0" class="badge" />-->
             </el-button>
-            <el-button type="text" @click="onMenuClick('uav')" class="menu-btn">
+<!--            <el-button type="text" @click="onMenuClick('uav')" class="menu-btn">
               <span>智能无人机</span>
-              <!--              <el-badge :value="0" class="badge" />-->
-            </el-button>
+              &lt;!&ndash;              <el-badge :value="0" class="badge" />&ndash;&gt;
+            </el-button>-->
           </div>
-          <h1 class="title">智慧城市感算智协一体化照明系统</h1>
+          <h1 class="title"><!--智慧城市感算智协一体化照明系统-->灵眸天枢-多模态协同智慧灯杆系统</h1>
           <div class="right-actions">
             <el-button type="text" @click="onLogout" class="logout-btn">
               <span>登出</span>

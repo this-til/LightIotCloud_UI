@@ -81,7 +81,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, computed, reactive } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { VideoCamera, CaretTop, CaretBottom, CaretLeft, CaretRight, ZoomIn, ZoomOut } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
@@ -133,8 +133,6 @@ const maxFireDetections = 10 // 触发警报所需的检测次数
 const progressDecayInterval = ref(null) // 进度衰减定时器
 const lastFireDetectionTime = ref(0) // 最后一次检测到火灾的时间
 const alertTriggered = ref(false) // 警报触发标志，确保单次选择只触发一次
-
-const batchLock = reactive({ rolling: false, cover: false, clamp: false })
 
 // 车控制相关的
 /* ———————————————————————————*
@@ -214,25 +212,13 @@ const batchSwitch = async (state) => {
   }
 
   /* ===== 卷帘门 ===== */
-  if (!batchLock.rolling) {
-    batchLock.rolling = true
-    setRollingDoor(id, state)
-      .finally(() => (batchLock.rolling = false))
-  }
+  await setRollingDoor(id, state)
 
   /* ===== 基站盖板 ===== */
-  if (!batchLock.cover) {
-    batchLock.cover = true
-    setUavBaseStationCover(id, state)
-      .finally(() => (batchLock.cover = false))
-  }
+  await setUavBaseStationCover(id, state)
 
   /* ===== 基站夹具 ===== */
-  if (!batchLock.clamp) {
-    batchLock.clamp = true
-    setUavBaseStationClamp(id, state)
-      .finally(() => (batchLock.clamp = false))
-  }
+  await setUavBaseStationClamp(id, state)
 }
 
 /**

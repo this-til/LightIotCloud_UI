@@ -40,7 +40,7 @@
             </div>
 
             <!-- 无人机基站盖板 -->
-            <div class="control-row">
+            <div class="control-row" v-if="enabledUavBaseStationCover">
               <div class="control-label-wrapper">
                 <span class="control-label">基站盖板</span>
                 <span class="control-desc">控制无人机基站盖板开闭</span>
@@ -50,7 +50,7 @@
             </div>
 
             <!-- 无人机基站夹具 -->
-            <div class="control-row">
+            <div class="control-row" v-if="enabledUavBaseStationClamp">
               <div class="control-label-wrapper">
                 <span class="control-label">基站夹具</span>
                 <span class="control-desc">控制无人机基站夹具开闭</span>
@@ -219,7 +219,9 @@ import { computedAsync } from "@vueuse/core"
 import { ElNotification } from "element-plus"
 import { cos } from 'three/nodes'
 
-const enabledIntercomSwitch = true
+const enabledIntercomSwitch = false
+const enabledUavBaseStationCover = false  // 控制基站盖板显示
+const enabledUavBaseStationClamp = false  // 控制基站夹具显示
 const intercomSwitchOpen = ref(false)
 
 const handleIntercomSwitchChange = (value) => {
